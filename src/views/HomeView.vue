@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import TheWelcome from '../components/TheWelcome.vue'
+import BlobField from '../components/BlobField.vue'
 </script>
 
 <template>
   <main>
-    <TheWelcome />
+    <BlobField />
   </main>
 </template>
