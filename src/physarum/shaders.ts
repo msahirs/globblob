@@ -12,6 +12,13 @@ uniform vec3 dotSizes;
 varying float team;
 void main(){
     vec4 posText = texture2D(positionTexture,uv ) ;
+    // Treat negative team values as "inactive" particles.
+    if (posText.a < -0.5) {
+        team = 0.;
+        gl_PointSize = 0.;
+        gl_Position = vec4(2., 2., 0., 1.);
+        return;
+    }
     gl_Position=  projectionMatrix * modelViewMatrix * vec4(posText.xy,0.,1.);
     team = posText.a;
     gl_PointSize = dotSizes[int(team)];
@@ -245,6 +252,10 @@ export const UPDATE_DOTS_FRAGMENT = `
         vec2 position = tmpPos.xy ;
         float direction = tmpPos.z;
         float team = tmpPos.a;
+        if (team < -0.5) {
+            gl_FragColor = tmpPos;
+            return;
+        }
         int teamInt = int(team);
 
         bool isPulsing = mod(time + 11. * (1. + team),80.) <40.;

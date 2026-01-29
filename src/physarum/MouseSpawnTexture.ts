@@ -15,6 +15,13 @@ export class MouseSpawnTexture {
     this.dataTexture.needsUpdate = true
   }
 
+  setCounter(counter: number) {
+    const max = this.data.length / 4
+    const next = Math.floor(counter)
+    this.counter = max > 0 ? ((next % max) + max) % max : 0
+    this.toClear = 0
+  }
+
   drawMouse(
     pos: { x: number; y: number },
     radius: number,
@@ -67,4 +74,3 @@ export class MouseSpawnTexture {
     ;(this.data as any) = null
   }
 }
-

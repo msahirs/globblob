@@ -54,6 +54,12 @@ export class PhysarumRender {
   private readonly container: HTMLElement
 
   private readonly settings: {
+    speciesCount: 1 | 3
+    singleTeam: 0 | 1 | 2
+    seedMode: 'Edges' | 'Center'
+    initialActiveParticles: number
+    isMousePush: boolean
+
     mouseRad: number
     mousePlaceAmount: number
     mousePlaceRadius: number
@@ -196,17 +202,18 @@ export class PhysarumRender {
   }
 
   private initSettings() {
-    const moveSpeed0 = rndFloat(1, 2.5)
-    const moveSpeed1 = rndFloat(1, 2.5)
-    const moveSpeed2 = rndFloat(1, 2.5)
-    const rotationAngle0 = rndFloat(0.1, 0.3)
-    const rotationAngle1 = rndFloat(0.1, 0.3)
-    const rotationAngle2 = rndFloat(0.1, 0.3)
-
     const settings = {
+      // New "growth" defaults: start as a single species with a small amount of active particles,
+      // and allow the user to add more by clicking/dragging.
+      speciesCount: 1 as 1 | 3,
+      singleTeam: 0 as 0 | 1 | 2,
+      seedMode: 'Edges' as 'Edges' | 'Center',
+      initialActiveParticles: 900,
+      isMousePush: true,
+
       mouseRad: 100,
-      mousePlaceAmount: 200,
-      mousePlaceRadius: 50,
+      mousePlaceAmount: 60,
+      mousePlaceRadius: 40,
       mousePlaceColor: 0,
 
       isSobelFilter: false,
@@ -216,32 +223,28 @@ export class PhysarumRender {
 
       isParticleTexture: false,
       particleTexture: 'None',
-      decay: 0.97,
+      // Higher decay makes trails persist longer (more "growth", less "die-off").
+      decay: 0.995,
       isDisplacement: true,
       isRestrictToMiddle: false,
 
-      randChance: [rndFloat(0.05, 0.085), rndFloat(0.05, 0.085), rndFloat(0.05, 0.085)],
-      moveSpeed: [moveSpeed0, moveSpeed1, moveSpeed2],
-      sensorDistance: [
-        Math.min(50, rndFloat(1.5, 3) * moveSpeed0),
-        Math.min(50, rndFloat(1.5, 3) * moveSpeed1),
-        Math.min(50, rndFloat(1.5, 3) * moveSpeed2),
-      ],
-      rotationAngle: [rotationAngle0, rotationAngle1, rotationAngle2],
-      sensorAngle: [
-        Math.max(1, rndFloat(1, 1.5) * rotationAngle0),
-        Math.max(1, rndFloat(1, 1.5) * rotationAngle1),
-        Math.max(1, rndFloat(1, 1.5) * rotationAngle2),
-      ],
+      // Currently unused in the shader (random turn is commented out), but kept for parity.
+      randChance: [0, 0, 0],
+
+      // Stable, gentle movement defaults.
+      moveSpeed: [1.5, 1.5, 1.5],
+      sensorDistance: [6, 6, 6],
+      rotationAngle: [0.55, 0.55, 0.55],
+      sensorAngle: [0.8, 0.8, 0.8],
       colors: ['rgb(255,250,60)', 'rgb(255,0,0)', 'rgb(92,255,111)'],
-      infectious: [rndInt(0, 1), rndInt(0, 1), rndInt(0, 1)],
+      infectious: [0, 0, 0],
       dotSizes: [1, 1, 1],
-      attract0: [rndFloat(0.1, 1), rndFloat(-1, 0), rndFloat(-1, 0)],
-      attract1: [rndFloat(-1, 0), rndFloat(0.1, 1), rndFloat(-1, 0)],
-      attract2: [rndFloat(-1, 0), rndFloat(-1, 0), rndFloat(0.1, 1)],
+      // Each species follows only its own trail by default.
+      attract0: [1, 0, 0],
+      attract1: [0, 1, 0],
+      attract2: [0, 0, 1],
     }
 
-    this.randomizeSettings(-1, settings)
     return settings
   }
 
@@ -269,6 +272,7 @@ export class PhysarumRender {
     }
 
     this.initFinalMat()
+    this.resetPositions()
   }
 
   private initFinalMat() {
@@ -306,60 +310,58 @@ export class PhysarumRender {
       uvs[i * 2] = (i % this.particleWidth) / this.particleWidth
       uvs[i * 2 + 1] = ~~(i / this.particleWidth) / this.particleWidth
     }
-    this.resetPositions()
     return { pos, uvs }
   }
 
   private resetPositions() {
     const dotAmount = this.particleWidth * this.particleWidth
     const positionsAndDirections = new Float32Array(dotAmount * 4)
-    const rndSetup = rndInt(0, 1)
-    const marg = Math.min(this.width, this.height) * 0.2
-    const p0 = { x: rndInt(marg, this.width - marg), y: rndInt(marg, this.height - marg) }
-    const p1 = { x: rndInt(marg, this.width - marg), y: rndInt(marg, this.height - marg) }
-    const p2 = { x: rndInt(marg, this.width - marg), y: rndInt(marg, this.height - marg) }
+
+    const activeCount = Math.min(dotAmount, Math.max(0, Math.floor(this.settings.initialActiveParticles)))
+    const maxRadius = Math.min(this.width, this.height) * 0.48
+    const jitter = Math.min(this.width, this.height) * 0.02
+
+    const pickTeam = (): 0 | 1 | 2 => {
+      if (this.settings.speciesCount === 1) return this.settings.singleTeam
+      return rndInt(0, 2) as 0 | 1 | 2
+    }
 
     for (let i = 0; i < dotAmount; i++) {
-      let id = i * 4
-      const rnd = i / dotAmount
+      const id = i * 4
+      if (i >= activeCount) {
+        positionsAndDirections[id] = 0
+        positionsAndDirections[id + 1] = 0
+        positionsAndDirections[id + 2] = 0
+        positionsAndDirections[id + 3] = -1
+        continue
+      }
+
+      const team = pickTeam()
+      const ang = rndFloat(0, Math.PI * 2)
+
       let x = 0
       let y = 0
-      const rndAng = rndFloat(0, Math.PI * 2)
-
-      if (rndSetup === 0) {
-        let team = 0
-        if (rnd < 1 / 3) {
-          x = p0.x
-          y = p0.y
-          team = Math.floor(rnd * 3 * 3)
-        } else if (rnd < 2 / 3) {
-          x = p1.x
-          y = p1.y
-          team = Math.floor((rnd - 1 / 3) * 3 * 3)
-        } else {
-          x = p2.x
-          y = p2.y
-          team = Math.floor((rnd - 2 / 3) * 3 * 3)
-        }
-
-        y -= this.height * 0.5
-        x -= this.width * 0.5
-
-        const rndDis = rndFloat(10, 50) * team
-        x += rndDis * Math.cos(rndAng)
-        y += rndDis * Math.sin(rndAng)
-
-        positionsAndDirections[id++] = x + rndDis * Math.cos(rndAng)
-        positionsAndDirections[id++] = y + rndDis * Math.sin(rndAng)
-        positionsAndDirections[id++] = rndAng
-        positionsAndDirections[id] = team
+      let direction = 0
+      if (this.settings.seedMode === 'Edges') {
+        const r = maxRadius + rndFloat(-jitter, jitter)
+        x = Math.cos(ang) * r
+        y = Math.sin(ang) * r
+        direction = ang + Math.PI + rndFloat(-0.25, 0.25)
       } else {
-        positionsAndDirections[id++] = ((i % this.particleWidth) * this.width) / this.particleWidth
-        positionsAndDirections[id++] = (Math.floor(i / this.particleWidth) * this.height) / this.particleWidth
-        positionsAndDirections[id++] = rndAng
-        positionsAndDirections[id] = rndInt(0, 2)
+        const r = rndFloat(0, maxRadius * 0.12)
+        x = Math.cos(ang) * r
+        y = Math.sin(ang) * r
+        direction = rndFloat(0, Math.PI * 2)
       }
+
+      positionsAndDirections[id] = x
+      positionsAndDirections[id + 1] = y
+      positionsAndDirections[id + 2] = direction
+      positionsAndDirections[id + 3] = team
     }
+
+    // Spawn new particles into the "inactive" pool first (so clicks add cells instead of relocating).
+    this.mouseSpawnTexture.setCounter(activeCount)
 
     this.updateDotsShader?.dispose()
     this.updateDotsShader = null
@@ -368,15 +370,17 @@ export class PhysarumRender {
 
   private changeParticleAmount(newAmount: number) {
     this.particleWidth = Math.sqrt(newAmount)
+
+    this.mouseSpawnTexture.dispose()
+    this.mouseSpawnTexture = new MouseSpawnTexture(this.particleWidth, this.particleWidth)
+
     const arrays = this.getDataArrays(newAmount)
     this.updateDotsShader?.dispose()
+    this.updateDotsShader = null
     this.renderDotsShader?.dispose()
     this.renderDotsShader = null
     this.getRenderDotsShader(arrays.pos, arrays.uvs)
-    this.updateDotsShader = null
     this.resetPositions()
-    this.mouseSpawnTexture.dispose()
-    this.mouseSpawnTexture = new MouseSpawnTexture(this.particleWidth, this.particleWidth)
   }
 
   private getUpdateDotsShader(positionsAndDirections?: Float32Array) {
@@ -434,15 +438,23 @@ export class PhysarumRender {
     this.time++
 
     if (this.mouseDown) {
+      const spawnColor =
+        this.settings.speciesCount === 1 ? this.settings.singleTeam : this.settings.mousePlaceColor
       this.mouseSpawnTexture.drawMouse(
         this.mousePos,
         this.settings.mousePlaceRadius,
         this.settings.mousePlaceAmount,
-        this.settings.mousePlaceColor,
+        spawnColor,
       )
       this.updateDotsShader?.setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
     }
 
+    this.getUpdateDotsShader().setUniform(
+      'mouseRad',
+      this.settings.isMousePush ? this.settings.mouseRad : 0,
+    )
+    const infectious = this.settings.speciesCount === 1 ? [0, 0, 0] : this.settings.infectious
+    this.getUpdateDotsShader().setUniform('infectious', Vector(infectious))
     this.getUpdateDotsShader().setUniform('time', this.time)
     this.diffuseShader.setUniform('points', this.getRenderDotsShader().getTexture())
     this.diffuseShader.render(this.renderer)
@@ -501,6 +513,27 @@ export class PhysarumRender {
     this.gui = gui
     gui.close()
 
+    const growthFolder = gui.addFolder('Growth')
+    growthFolder.close()
+    growthFolder
+      .add(this.settings, 'speciesCount', { Single: 1, Three: 3 })
+      .name('Species')
+      .onChange(() => this.resetPositions())
+    growthFolder
+      .add(this.settings, 'singleTeam', { Slime0: 0, Slime1: 1, Slime2: 2 })
+      .name('Single team')
+      .onChange(() => {
+        if (this.settings.speciesCount === 1) this.resetPositions()
+      })
+    growthFolder
+      .add(this.settings, 'seedMode', { Edges: 'Edges', Center: 'Center' })
+      .name('Seed')
+      .onChange(() => this.resetPositions())
+    growthFolder
+      .add(this.settings, 'initialActiveParticles', 0, this.particleWidth * this.particleWidth, 50)
+      .name('Initial cells')
+      .onFinishChange(() => this.resetPositions())
+
     const amountFolder = gui.addFolder('Particle amount')
     for (let i = 0; i < 6; i++) {
       const amnt = Math.pow(Math.pow(2, 6 + 1 * i), 2)
@@ -514,6 +547,15 @@ export class PhysarumRender {
     const controls = gui.addFolder('Controls')
     controls.close()
 
+    controls
+      .add(this.settings, 'isMousePush')
+      .name('Mouse push')
+      .onChange(() =>
+        this.getUpdateDotsShader().setUniform(
+          'mouseRad',
+          this.settings.isMousePush ? this.settings.mouseRad : 0,
+        ),
+      )
     controls
       .add(this.settings, 'mouseRad', 0, 500, 0.1)
       .name('Mouse push radius')
@@ -534,7 +576,7 @@ export class PhysarumRender {
     }
 
     gui
-      .add(this.diffuseShader.getUniforms().decay as unknown as { value: number }, 'value', 0.01, 0.99, 0.01)
+      .add(this.diffuseShader.getUniforms().decay as unknown as { value: number }, 'value', 0.01, 1.0, 0.01)
       .name('Decay')
 
     gui
