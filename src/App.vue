@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, RouterView, useRoute } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
+
+const route = useRoute()
+const showHeader = computed(() => route.name !== 'physarum')
 </script>
 
 <template>
-  <header>
+  <header v-if="showHeader">
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
     <div class="wrapper">
@@ -12,6 +16,7 @@ import HelloWorld from './components/HelloWorld.vue'
 
       <nav>
         <RouterLink to="/">Home</RouterLink>
+        <RouterLink to="/physarum">Physarum</RouterLink>
         <RouterLink to="/about">About</RouterLink>
       </nav>
     </div>
