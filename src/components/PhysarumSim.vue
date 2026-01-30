@@ -4,11 +4,21 @@ import { PhysarumRender } from '@/physarum/PhysarumRender'
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const supported = ref(true)
+const showCellCount = ref(false)
+const cellCount = ref(0)
+const maxCells = ref(0)
 let sim: PhysarumRender | null = null
 let raf: number | null = null
 
 function frame() {
   sim?.render()
+  if (sim) {
+    showCellCount.value = sim.getShowCellCount()
+    if (showCellCount.value) {
+      cellCount.value = sim.getCellCount()
+      maxCells.value = sim.getMaxCells()
+    }
+  }
   raf = window.requestAnimationFrame(frame)
 }
 
@@ -39,6 +49,7 @@ onUnmounted(() => {
 <template>
   <div class="phys-root">
     <div ref="containerRef" class="phys-canvas" />
+    <div v-if="supported && showCellCount" class="phys-cellCount">Cells: {{ cellCount }} / {{ maxCells }}</div>
     <div v-if="!supported" class="phys-fallback">
       This simulation requires WebGL2 + float render targets.
     </div>
@@ -67,6 +78,21 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.85);
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.phys-cellCount {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  z-index: 10;
+  user-select: none;
 }
 
 /* Match Physarum-WebGL's interface styles for the info dialog/button. */
@@ -109,4 +135,3 @@ onUnmounted(() => {
   z-index: 9999;
 }
 </style>
-

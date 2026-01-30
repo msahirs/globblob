@@ -52,6 +52,7 @@ export class PhysarumRender {
   private infoButtonEl: HTMLDivElement | null = null
 
   private readonly container: HTMLElement
+  private activeCells = 0
 
   private readonly settings: {
     speciesCount: 1 | 3
@@ -59,6 +60,7 @@ export class PhysarumRender {
     seedMode: 'Edges' | 'Center'
     initialActiveParticles: number
     isMousePush: boolean
+    showCellCount: boolean
 
     mouseRad: number
     mousePlaceAmount: number
@@ -210,6 +212,7 @@ export class PhysarumRender {
       seedMode: 'Edges' as 'Edges' | 'Center',
       initialActiveParticles: 900,
       isMousePush: true,
+      showCellCount: false,
 
       mouseRad: 100,
       mousePlaceAmount: 60,
@@ -362,6 +365,7 @@ export class PhysarumRender {
 
     // Spawn new particles into the "inactive" pool first (so clicks add cells instead of relocating).
     this.mouseSpawnTexture.setCounter(activeCount)
+    this.activeCells = activeCount
 
     this.updateDotsShader?.dispose()
     this.updateDotsShader = null
@@ -438,6 +442,7 @@ export class PhysarumRender {
     this.time++
 
     if (this.mouseDown) {
+      this.activeCells = Math.min(this.getMaxCells(), this.activeCells + this.settings.mousePlaceAmount)
       const spawnColor =
         this.settings.speciesCount === 1 ? this.settings.singleTeam : this.settings.mousePlaceColor
       this.mouseSpawnTexture.drawMouse(
@@ -478,6 +483,18 @@ export class PhysarumRender {
     this.getUpdateDotsShader().setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
 
     this.composer.render()
+  }
+
+  getCellCount() {
+    return this.activeCells
+  }
+
+  getMaxCells() {
+    return this.particleWidth * this.particleWidth
+  }
+
+  getShowCellCount() {
+    return this.settings.showCellCount
   }
 
   private initComposer() {
@@ -533,6 +550,7 @@ export class PhysarumRender {
       .add(this.settings, 'initialActiveParticles', 0, this.particleWidth * this.particleWidth, 50)
       .name('Initial cells')
       .onFinishChange(() => this.resetPositions())
+    growthFolder.add(this.settings, 'showCellCount').name('Show cell count')
 
     const amountFolder = gui.addFolder('Particle amount')
     for (let i = 0; i < 6; i++) {
