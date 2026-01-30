@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import PhysarumDevView from '../views/PhysarumDevView.vue'
+import MetaballsDevView from '../views/MetaballsDevView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -14,6 +15,11 @@ const router = createRouter({
       path: '/physarum',
       name: 'physarum',
       component: PhysarumDevView,
+    },
+    {
+      path: '/metaballs',
+      name: 'metaballs',
+      component: MetaballsDevView,
     },
     {
       path: '/about',

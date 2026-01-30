@@ -4,7 +4,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 
 const route = useRoute()
-const showHeader = computed(() => route.name !== 'physarum')
+const showHeader = computed(() => route.name !== 'physarum' && route.name !== 'metaballs')
 </script>
 
 <template>
@@ -17,6 +17,7 @@ const showHeader = computed(() => route.name !== 'physarum')
       <nav>
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/physarum">Physarum</RouterLink>
+        <RouterLink to="/metaballs">Metaballs</RouterLink>
         <RouterLink to="/about">About</RouterLink>
       </nav>
     </div>
