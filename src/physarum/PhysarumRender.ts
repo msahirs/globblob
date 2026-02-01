@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import GUI from 'lil-gui'
+import Stats from 'three/addons/libs/stats.module.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
@@ -30,6 +31,8 @@ export class PhysarumRender {
   private particleWidth = 256
   private mouseDown = false
   private mousePos: MousePos = { x: 0, y: 0 }
+  private readonly mousePosVec = new THREE.Vector2()
+  private readonly infectiousVec = new THREE.Vector3()
 
   private renderer: THREE.WebGLRenderer
   private scene: THREE.Scene
@@ -50,6 +53,7 @@ export class PhysarumRender {
   private gui: GUI | null = null
   private guiGroups: GUI[] | null = null
   private infoButtonEl: HTMLDivElement | null = null
+  private stats: Stats | null = null
 
   private readonly container: HTMLElement
   private activeCells = 0
@@ -188,7 +192,19 @@ export class PhysarumRender {
     this.initGUI()
 
     this.container.appendChild(this.renderer.domElement)
+    this.initStats()
     return true
+  }
+
+  private initStats() {
+    const stats = new Stats()
+    this.stats = stats
+    stats.showPanel(0)
+    stats.dom.style.position = 'absolute'
+    stats.dom.style.left = '8px'
+    stats.dom.style.top = '8px'
+    stats.dom.style.zIndex = '20'
+    this.container.appendChild(stats.dom)
   }
 
   private initMouse() {
@@ -439,7 +455,11 @@ export class PhysarumRender {
 
   render() {
     if (!this.renderer.capabilities.isWebGL2) return
+    this.stats?.begin()
     this.time++
+
+    const updateDotsShader = this.getUpdateDotsShader()
+    const renderDotsShader = this.getRenderDotsShader()
 
     if (this.mouseDown) {
       this.activeCells = Math.min(this.getMaxCells(), this.activeCells + this.settings.mousePlaceAmount)
@@ -451,38 +471,47 @@ export class PhysarumRender {
         this.settings.mousePlaceAmount,
         spawnColor,
       )
-      this.updateDotsShader?.setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
+      updateDotsShader.setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
     }
 
-    this.getUpdateDotsShader().setUniform(
+    updateDotsShader.setUniform(
       'mouseRad',
       this.settings.isMousePush ? this.settings.mouseRad : 0,
     )
-    const infectious = this.settings.speciesCount === 1 ? [0, 0, 0] : this.settings.infectious
-    this.getUpdateDotsShader().setUniform('infectious', Vector(infectious))
-    this.getUpdateDotsShader().setUniform('time', this.time)
-    this.diffuseShader.setUniform('points', this.getRenderDotsShader().getTexture())
+    if (this.settings.speciesCount === 1) {
+      this.infectiousVec.set(0, 0, 0)
+    } else {
+      this.infectiousVec.set(
+        this.settings.infectious[0] ?? 0,
+        this.settings.infectious[1] ?? 0,
+        this.settings.infectious[2] ?? 0,
+      )
+    }
+    updateDotsShader.setUniform('infectious', this.infectiousVec)
+    updateDotsShader.setUniform('time', this.time)
+    this.diffuseShader.setUniform('points', renderDotsShader.getTexture())
     this.diffuseShader.render(this.renderer)
 
-    this.getUpdateDotsShader().setUniform('mousePos', new THREE.Vector2(this.mousePos.x, this.mousePos.y))
-    this.getUpdateDotsShader().setUniform('pointsTexture', this.getRenderDotsShader().getTexture())
-    this.getUpdateDotsShader().setUniform('diffuseTexture', this.diffuseShader.getTexture())
+    this.mousePosVec.set(this.mousePos.x, this.mousePos.y)
+    updateDotsShader.setUniform('mousePos', this.mousePosVec)
+    updateDotsShader.setUniform('pointsTexture', renderDotsShader.getTexture())
+    updateDotsShader.setUniform('diffuseTexture', this.diffuseShader.getTexture())
 
-    this.getUpdateDotsShader().render(this.renderer, {})
+    updateDotsShader.render(this.renderer, {})
 
-    this.getRenderDotsShader().setUniform('positionTexture', this.getUpdateDotsShader().getTexture())
-    this.getRenderDotsShader().render(this.renderer)
+    renderDotsShader.setUniform('positionTexture', updateDotsShader.getTexture())
+    renderDotsShader.render(this.renderer)
 
-    this.finalMat.uniforms['pointsTexture']!.value = this.getRenderDotsShader().getTexture()
+    this.finalMat.uniforms['pointsTexture']!.value = renderDotsShader.getTexture()
     this.finalMat.uniforms['diffuseTexture']!.value = this.diffuseShader.getTexture()
 
-    this.renderer.setSize(this.width, this.height)
     this.renderer.clear()
 
     this.mouseSpawnTexture.clear()
-    this.getUpdateDotsShader().setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
+    updateDotsShader.setUniform('mouseSpawnTexture', this.mouseSpawnTexture.getTexture())
 
     this.composer.render()
+    this.stats?.end()
   }
 
   getCellCount() {
@@ -757,6 +786,9 @@ export class PhysarumRender {
 
     this.infoButtonEl?.remove()
     this.infoButtonEl = null
+
+    this.stats?.dom.remove()
+    this.stats = null
 
     this.updateDotsShader?.dispose()
     this.updateDotsShader = null

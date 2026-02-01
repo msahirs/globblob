@@ -105,7 +105,6 @@ export class PingPongShader {
       this.material.uniforms[key]!.value = updatedUniforms[key]
     }
 
-    renderer.setSize(this.width, this.height)
     renderer.setRenderTarget(this.nextRenderTarget)
     renderer.render(this.getScene(), this.getCamera())
     renderer.setRenderTarget(null)

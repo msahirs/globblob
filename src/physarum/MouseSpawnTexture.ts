@@ -53,6 +53,7 @@ export class MouseSpawnTexture {
   }
 
   clear() {
+    if (this.toClear <= 0) return
     for (let i = this.counter - this.toClear; i < this.counter; i++) {
       const index = (i * 4 + this.data.length) % this.data.length
       this.data[index] = 0
