@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import GUI from 'lil-gui'
+import Stats from 'three/addons/libs/stats.module.js'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
@@ -45,6 +46,7 @@ export class MetaballsRender {
   private bloomOverlayMaterial: THREE.ShaderMaterial
   private bloomOverlayMesh: THREE.Mesh
   private drawBufferSize = new THREE.Vector2()
+  private stats: Stats | null = null
 
   private gui: GUI | null = null
 
@@ -58,6 +60,7 @@ export class MetaballsRender {
   private ballUniforms: THREE.Vector4[] = Array.from({ length: MAX_BALLS }, () => new THREE.Vector4())
   private lastMs = 0
   private fieldDirty = true
+  private frameDirty = true
 
   private width = 1
   private height = 1
@@ -203,9 +206,21 @@ export class MetaballsRender {
     this.reset()
     this.initBloom()
     this.initGui()
+    this.initStats()
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown)
     window.addEventListener('resize', this.resize)
     return true
+  }
+
+  private initStats() {
+    const stats = new Stats()
+    this.stats = stats
+    stats.showPanel(0)
+    stats.dom.style.position = 'absolute'
+    stats.dom.style.left = '8px'
+    stats.dom.style.top = '8px'
+    stats.dom.style.zIndex = '20'
+    this.container.appendChild(stats.dom)
   }
 
   private initBloom() {
@@ -238,22 +253,22 @@ export class MetaballsRender {
     f.close()
 
     f.add(this.settings, 'ballCount', 1, 24, 1).name('Balls').onFinishChange(() => this.reset())
-    f.add(this.settings, 'animate').name('Animate').onChange(() => (this.fieldDirty = true))
-    f.add(this.settings, 'threshold', 0.2, 4.0, 0.01).name('Threshold')
-    f.add(this.settings, 'softness', 0.001, 0.2, 0.001).name('Softness')
-    f.add(this.settings, 'speed', 0, 4, 0.01).name('Speed')
+    f.add(this.settings, 'animate').name('Animate').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'threshold', 0.2, 4.0, 0.01).name('Threshold').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'softness', 0.001, 0.2, 0.001).name('Softness').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'speed', 0, 4, 0.01).name('Speed').onChange(() => (this.frameDirty = true))
     f.add(this.settings, 'gridSize', [128, 192, 256, 384, 512, 768, 1024])
       .name('Grid base')
       .onFinishChange(() => this.recreateFieldTarget())
-    f.add(this.settings, 'showContours').name('Contours')
-    f.add(this.settings, 'lineWidthPx', 0.5, 6.0, 0.1).name('Line width')
+    f.add(this.settings, 'showContours').name('Contours').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'lineWidthPx', 0.5, 6.0, 0.1).name('Line width').onChange(() => (this.frameDirty = true))
     f.add(this.settings, 'colorMode', { Single: 0, Palette: 1 })
       .name('Color mode')
-      .onChange(() => (this.fieldDirty = true))
+      .onChange(() => (this.frameDirty = true))
     f.add(this.settings, 'paletteName', paletteOptions()).name('Palette').onChange(() => this.applyPalette())
-    f.add(this.settings, 'usePaletteBg').name('Palette bg')
-    f.addColor(this.settings, 'blobColor').name('Blob color')
-    f.addColor(this.settings, 'background').name('Background')
+    f.add(this.settings, 'usePaletteBg').name('Palette bg').onChange(() => (this.frameDirty = true))
+    f.addColor(this.settings, 'blobColor').name('Blob color').onChange(() => (this.frameDirty = true))
+    f.addColor(this.settings, 'background').name('Background').onChange(() => (this.frameDirty = true))
 
     const s = gui.addFolder('Spawn')
     s.close()
@@ -269,21 +284,25 @@ export class MetaballsRender {
       .name('Enabled')
       .onChange(() => {
         if (this.bloomPass) this.bloomPass.enabled = this.settings.bloomEnabled
+        this.frameDirty = true
       })
     b.add(this.settings, 'bloomStrength', 0, 3, 0.01)
       .name('Strength')
       .onChange(() => {
         if (this.bloomPass) this.bloomPass.strength = this.settings.bloomStrength
+        this.frameDirty = true
       })
     b.add(this.settings, 'bloomRadius', 0, 1, 0.01)
       .name('Radius')
       .onChange(() => {
         if (this.bloomPass) this.bloomPass.radius = this.settings.bloomRadius
+        this.frameDirty = true
       })
     b.add(this.settings, 'bloomThreshold', 0, 1, 0.01)
       .name('Threshold')
       .onChange(() => {
         if (this.bloomPass) this.bloomPass.threshold = this.settings.bloomThreshold
+        this.frameDirty = true
       })
     f.add(this.settings, 'reset').name('Reset')
   }
@@ -302,7 +321,7 @@ export class MetaballsRender {
     this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
     this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
 
-    this.fieldDirty = true
+    this.frameDirty = true
   }
 
   private recreateFieldTarget() {
@@ -331,6 +350,7 @@ export class MetaballsRender {
     ;(this.bloomMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
     this.bloomMaterial.uniforms.uField!.value = this.fieldRT.texture
     this.fieldDirty = true
+    this.frameDirty = true
   }
 
   private reset() {
@@ -365,6 +385,7 @@ export class MetaballsRender {
 
     this.lastMs = 0
     this.fieldDirty = true
+    this.frameDirty = true
   }
 
   private resize = () => {
@@ -394,51 +415,65 @@ export class MetaballsRender {
     ;(this.bloomMaterial.uniforms.uResolution!.value as THREE.Vector2).copy(this.drawBufferSize)
 
     this.recreateFieldTarget()
+    this.frameDirty = true
   }
 
   render(nowMs: number) {
-    if (!this.fieldRT) return
+    const stats = this.stats
+    stats?.begin()
+    try {
+      if (!this.fieldRT) return
 
-    if (!this.lastMs) this.lastMs = nowMs
-    const baseDt = clamp((nowMs - this.lastMs) / 1000, 0, 0.05) * this.settings.speed
-    this.lastMs = nowMs
+      if (!this.lastMs) this.lastMs = nowMs
+      const baseDt = clamp((nowMs - this.lastMs) / 1000, 0, 0.05) * this.settings.speed
+      this.lastMs = nowMs
 
-    const dt = this.settings.animate ? baseDt : 0
-    this.tick(dt)
+      const dt = this.settings.animate ? baseDt : 0
+      this.tick(dt)
 
-    this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
+      // Nothing changed: skip all GPU work.
+      if (!this.fieldDirty && !this.frameDirty) return
 
-    if (this.fieldDirty) {
-      this.renderer.setRenderTarget(this.fieldRT)
-      this.renderer.render(this.fieldScene, this.camera)
+      if (this.fieldDirty) {
+        this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
+        this.renderer.setRenderTarget(this.fieldRT)
+        this.renderer.render(this.fieldScene, this.camera)
+        this.renderer.setRenderTarget(null)
+        this.fieldDirty = false
+        this.frameDirty = true
+      }
+
+      if (!this.frameDirty) return
+
+      this.finalMaterial.uniforms.uThreshold!.value = this.settings.threshold
+      this.finalMaterial.uniforms.uSoftness!.value = this.settings.softness
+      this.finalMaterial.uniforms.uLineWidthPx!.value = this.settings.lineWidthPx
+      this.finalMaterial.uniforms.uShowContours!.value = this.settings.showContours
+      this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
+      this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
+      ;(this.finalMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
+      ;(this.finalMaterial.uniforms.uBgColor!.value as THREE.Color).set(this.settings.background)
+
+      this.bloomMaterial.uniforms.uThreshold!.value = this.settings.threshold
+      this.bloomMaterial.uniforms.uSoftness!.value = this.settings.softness
+      this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
+      ;(this.bloomMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
+
       this.renderer.setRenderTarget(null)
-      this.fieldDirty = false
-    }
+      this.renderer.clear()
+      this.renderer.render(this.scene, this.camera)
 
-    this.finalMaterial.uniforms.uThreshold!.value = this.settings.threshold
-    this.finalMaterial.uniforms.uSoftness!.value = this.settings.softness
-    this.finalMaterial.uniforms.uLineWidthPx!.value = this.settings.lineWidthPx
-    this.finalMaterial.uniforms.uShowContours!.value = this.settings.showContours
-    this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
-    this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
-    ;(this.finalMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
-    ;(this.finalMaterial.uniforms.uBgColor!.value as THREE.Color).set(this.settings.background)
+      if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
+        this.bloomComposer.render()
+        const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }).readBuffer.texture
+        this.bloomOverlayMaterial.uniforms.tBloom!.value = bloomTexture
+        this.bloomOverlayMaterial.uniforms.uBloomMix!.value = 1.0
+        this.renderer.render(this.bloomOverlayScene, this.camera)
+      }
 
-    this.bloomMaterial.uniforms.uThreshold!.value = this.settings.threshold
-    this.bloomMaterial.uniforms.uSoftness!.value = this.settings.softness
-    this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
-    ;(this.bloomMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
-
-    this.renderer.setRenderTarget(null)
-    this.renderer.clear()
-    this.renderer.render(this.scene, this.camera)
-
-    if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
-      this.bloomComposer.render()
-      const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }).readBuffer.texture
-      this.bloomOverlayMaterial.uniforms.tBloom!.value = bloomTexture
-      this.bloomOverlayMaterial.uniforms.uBloomMix!.value = 1.0
-      this.renderer.render(this.bloomOverlayScene, this.camera)
+      this.frameDirty = false
+    } finally {
+      stats?.end()
     }
   }
 
@@ -472,6 +507,7 @@ export class MetaballsRender {
     }
 
     this.fieldDirty = true
+    this.frameDirty = true
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -522,6 +558,7 @@ export class MetaballsRender {
     this.fieldMaterial.uniforms.uBalls!.value = this.ballUniforms
     this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
     this.fieldDirty = true
+    this.frameDirty = true
   }
 
   dispose() {
@@ -530,6 +567,9 @@ export class MetaballsRender {
 
     this.gui?.destroy()
     this.gui = null
+
+    this.stats?.dom.remove()
+    this.stats = null
 
     this.bloomComposer?.dispose()
     this.bloomComposer = null

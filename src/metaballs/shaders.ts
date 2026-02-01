@@ -103,29 +103,10 @@ void main(){
   float NW = sampleField(c01);
   float NE = sampleField(c11);
 
-  float bSW = SW > uThreshold ? 1.0 : 0.0;
-  float bSE = SE > uThreshold ? 1.0 : 0.0;
-  float bNE = NE > uThreshold ? 1.0 : 0.0;
-  float bNW = NW > uThreshold ? 1.0 : 0.0;
-
-  int cellType = int(bSW + bSE * 2.0 + bNE * 4.0 + bNW * 8.0 + 0.5);
-
-  // Edge intersections (0..1)
-  float N = (bNW == bNE) ? 0.5 : lerpEdge(NW, NE, uThreshold);
-  float S = (bSW == bSE) ? 0.5 : lerpEdge(SW, SE, uThreshold);
-  float W = (bSW == bNW) ? 0.5 : lerpEdge(SW, NW, uThreshold);
-  float E = (bSE == bNE) ? 0.5 : lerpEdge(SE, NE, uThreshold);
-
-  vec2 pN = vec2(N, 1.0);
-  vec2 pS = vec2(S, 0.0);
-  vec2 pW = vec2(0.0, W);
-  vec2 pE = vec2(1.0, E);
-
   // Bilinear field for fill (gives a smooth, stable surface).
   float v0 = mix(SW, SE, local.x);
   float v1 = mix(NW, NE, local.x);
   float v = mix(v0, v1, local.y);
-  float vCenter = (SW + SE + NW + NE) * 0.25;
 
   float iso = uThreshold;
   float softness = max(1e-6, uSoftness);
@@ -153,35 +134,57 @@ void main(){
   vec3 col = mix(bg, base, inside);
 
   // Marching squares contour overlay (line segments per cell).
-  if (uShowContours && cellType != 0 && cellType != 15) {
-    vec2 cellSizePx = uResolution / (uFieldSize - 1.0);
-    float wLocal = uLineWidthPx / max(1.0, min(cellSizePx.x, cellSizePx.y));
-    float line = 0.0;
+  if (uShowContours) {
+    float bSW = SW > uThreshold ? 1.0 : 0.0;
+    float bSE = SE > uThreshold ? 1.0 : 0.0;
+    float bNE = NE > uThreshold ? 1.0 : 0.0;
+    float bNW = NW > uThreshold ? 1.0 : 0.0;
 
-    // Mapping from Jamie Wong's blog post (cell-type-to-poly-corners.js).
-    if (cellType == 1)      line = drawSegment(local, pW, pS, wLocal);
-    else if (cellType == 2) line = drawSegment(local, pE, pS, wLocal);
-    else if (cellType == 3) line = drawSegment(local, pW, pE, wLocal);
-    else if (cellType == 4) line = drawSegment(local, pN, pE, wLocal);
-    else if (cellType == 5) {
-      if (vCenter > uThreshold) line = max(drawSegment(local, pN, pW, wLocal), drawSegment(local, pS, pE, wLocal));
-      else line = max(drawSegment(local, pN, pE, wLocal), drawSegment(local, pS, pW, wLocal));
-    }
-    else if (cellType == 6) line = drawSegment(local, pN, pS, wLocal);
-    else if (cellType == 7) line = drawSegment(local, pN, pW, wLocal);
-    else if (cellType == 8) line = drawSegment(local, pN, pW, wLocal);
-    else if (cellType == 9) line = drawSegment(local, pN, pS, wLocal);
-    else if (cellType == 10) {
-      if (vCenter > uThreshold) line = max(drawSegment(local, pN, pE, wLocal), drawSegment(local, pS, pW, wLocal));
-      else line = max(drawSegment(local, pN, pW, wLocal), drawSegment(local, pS, pE, wLocal));
-    }
-    else if (cellType == 11) line = drawSegment(local, pN, pE, wLocal);
-    else if (cellType == 12) line = drawSegment(local, pE, pW, wLocal);
-    else if (cellType == 13) line = drawSegment(local, pE, pS, wLocal);
-    else if (cellType == 14) line = drawSegment(local, pS, pW, wLocal);
+    int cellType = int(bSW + bSE * 2.0 + bNE * 4.0 + bNW * 8.0 + 0.5);
 
-    vec3 lineCol = mix((uColorMode == 0 ? uBlobColor : uPalette2), vec3(1.0), 0.35);
-    col = mix(col, lineCol, line);
+    if (cellType != 0 && cellType != 15) {
+      // Edge intersections (0..1)
+      float N = (bNW == bNE) ? 0.5 : lerpEdge(NW, NE, uThreshold);
+      float S = (bSW == bSE) ? 0.5 : lerpEdge(SW, SE, uThreshold);
+      float W = (bSW == bNW) ? 0.5 : lerpEdge(SW, NW, uThreshold);
+      float E = (bSE == bNE) ? 0.5 : lerpEdge(SE, NE, uThreshold);
+
+      vec2 pN = vec2(N, 1.0);
+      vec2 pS = vec2(S, 0.0);
+      vec2 pW = vec2(0.0, W);
+      vec2 pE = vec2(1.0, E);
+
+      float vCenter = (SW + SE + NW + NE) * 0.25;
+
+      vec2 cellSizePx = uResolution / (uFieldSize - 1.0);
+      float wLocal = uLineWidthPx / max(1.0, min(cellSizePx.x, cellSizePx.y));
+      float line = 0.0;
+
+      // Mapping from Jamie Wong's blog post (cell-type-to-poly-corners.js).
+      if (cellType == 1)      line = drawSegment(local, pW, pS, wLocal);
+      else if (cellType == 2) line = drawSegment(local, pE, pS, wLocal);
+      else if (cellType == 3) line = drawSegment(local, pW, pE, wLocal);
+      else if (cellType == 4) line = drawSegment(local, pN, pE, wLocal);
+      else if (cellType == 5) {
+        if (vCenter > uThreshold) line = max(drawSegment(local, pN, pW, wLocal), drawSegment(local, pS, pE, wLocal));
+        else line = max(drawSegment(local, pN, pE, wLocal), drawSegment(local, pS, pW, wLocal));
+      }
+      else if (cellType == 6) line = drawSegment(local, pN, pS, wLocal);
+      else if (cellType == 7) line = drawSegment(local, pN, pW, wLocal);
+      else if (cellType == 8) line = drawSegment(local, pN, pW, wLocal);
+      else if (cellType == 9) line = drawSegment(local, pN, pS, wLocal);
+      else if (cellType == 10) {
+        if (vCenter > uThreshold) line = max(drawSegment(local, pN, pE, wLocal), drawSegment(local, pS, pW, wLocal));
+        else line = max(drawSegment(local, pN, pW, wLocal), drawSegment(local, pS, pE, wLocal));
+      }
+      else if (cellType == 11) line = drawSegment(local, pN, pE, wLocal);
+      else if (cellType == 12) line = drawSegment(local, pE, pW, wLocal);
+      else if (cellType == 13) line = drawSegment(local, pE, pS, wLocal);
+      else if (cellType == 14) line = drawSegment(local, pS, pW, wLocal);
+
+      vec3 lineCol = mix((uColorMode == 0 ? uBlobColor : uPalette2), vec3(1.0), 0.35);
+      col = mix(col, lineCol, line);
+    }
   }
 
   // Subtle outer glow.
