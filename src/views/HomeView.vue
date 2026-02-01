@@ -18,16 +18,17 @@ import { RouterLink } from 'vue-router'
 
 <style scoped>
 .home {
+  width: 1080px;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: #050505;
+  background: #0a0922;
   color: rgba(255, 255, 255, 0.92);
 }
 
 .home-card {
-  width: 75%;
+  width: min(720px, 100%);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
   padding: 24px;
