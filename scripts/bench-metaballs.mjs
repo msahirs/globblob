@@ -66,8 +66,9 @@ async function main() {
   const page = await context.newPage()
 
   try {
-    await page.goto(`${baseUrl}metaballs`, { waitUntil: 'domcontentloaded' })
-    await page.waitForSelector('.mb-root')
+    await page.goto(`${baseUrl}`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Start' }).click()
+    await page.waitForSelector('.petriSimCanvas canvas')
     const result = await measureRafFrameTimes(page)
     // eslint-disable-next-line no-console
     console.log(`METABALLS_BENCH ${JSON.stringify(result)}`)
@@ -84,4 +85,3 @@ main().catch((err) => {
   console.error(err)
   process.exitCode = 1
 })
-
