@@ -44,6 +44,7 @@ uniform vec2 uFieldSize;
 uniform float uThreshold;
 uniform float uLineWidthPx;
 uniform float uSoftness;
+uniform float uEdgeGlowStrength;
 uniform bool uShowContours;
 uniform vec3 uPalette0;
 uniform vec3 uPalette1;
@@ -190,7 +191,7 @@ void main(){
   // Subtle outer glow.
   float glow = smoothstep(iso - softness * 6.0, iso - softness * 0.5, v) - smoothstep(iso - softness * 0.5, iso + softness, v);
   vec3 glowCol = (uColorMode == 0) ? uBlobColor : uPalette2;
-  col += glowCol * glow * 0.35;
+  col += glowCol * glow * uEdgeGlowStrength;
 
   gl_FragColor = vec4(col, 1.0);
 }

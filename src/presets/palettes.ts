@@ -8,6 +8,8 @@ export type RGB = { r: number; g: number; b: number }
 export const PALETTE_PRESETS: readonly PalettePreset[] = [
   { name: 'Candy Shop', colors: [{ r: 0.31, g: 0.14, b: 0.33 }, { r: 0.87, g: 0.85, b: 0.65 }, { r: 0.54, g: 0.99, b: 0.77 }] },
   { name: 'Biolab', colors: [{ r: 0.12, g: 0.07, b: 0.15 }, { r: 0.1, g: 0.31, b: 0.2 }, { r: 0.87, g: 0.93, b: 0.53 }] },
+  // Matches the bio-onepager pH slider pointer / "MICROBIAL BIOLOGY" title hue (#20694A).
+  { name: 'Microbial Green', colors: [{ r: 0.125, g: 0.412, b: 0.29 }, { r: 0.31, g: 0.67, b: 0.48 }, { r: 0.78, g: 0.91, b: 0.71 }] },
   { name: 'Forest', colors: [{ r: 0.13, g: 0.11, b: 0.0 }, { r: 0.4, g: 0.7, b: 0.2 }, { r: 0.9, g: 1.0, b: 0.6 }] },
   { name: 'Tropical Reef', colors: [{ r: 0.05, g: 0.1, b: 0.2 }, { r: 0.15, g: 0.7, b: 0.6 }, { r: 0.95, g: 0.9, b: 0.55 }] },
   { name: 'Deep Ocean', colors: [{ r: 0.0, g: 0.1, b: 0.3 }, { r: 0.2, g: 0.6, b: 0.8 }, { r: 0.95, g: 0.95, b: 0.8 }] },
@@ -26,4 +28,3 @@ export function paletteOptions() {
 export function getPalette(name: string) {
   return PALETTE_PRESETS.find((p) => p.name === name) ?? PALETTE_PRESETS[0]!
 }
-

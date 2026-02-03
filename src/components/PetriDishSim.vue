@@ -26,7 +26,8 @@ onMounted(() => {
   }
 
   sim = new MetaballsDishRender(containerRef.value)
-  supported.value = sim.init({ showStats: true, showGui: import.meta.env.DEV })
+  const isAutomated = typeof navigator !== 'undefined' && !!navigator.webdriver
+  supported.value = sim.init({ showStats: true, showGui: import.meta.env.DEV && !isAutomated })
   if (!supported.value) return
 
   sim.setRunning(props.running)

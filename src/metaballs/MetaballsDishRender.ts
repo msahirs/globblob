@@ -60,7 +60,10 @@ export class MetaballsDishRender {
   private finalMesh: THREE.Mesh
 
   private balls: Ball[] = []
-  private ballUniforms: THREE.Vector4[] = Array.from({ length: MAX_BALLS }, () => new THREE.Vector4())
+  private ballUniforms: THREE.Vector4[] = Array.from(
+    { length: MAX_BALLS },
+    () => new THREE.Vector4(),
+  )
   private lastMs = 0
   private fieldDirty = true
   private frameDirty = true
@@ -78,6 +81,7 @@ export class MetaballsDishRender {
     threshold: 1.0,
     softness: 0.06,
     lineWidthPx: 1.5,
+    edgeGlowStrength: 0.0,
     showContours: false,
     colorMode: 1 as 0 | 1, // 0=single, 1=palette
     paletteName: 'Biolab',
@@ -89,7 +93,7 @@ export class MetaballsDishRender {
     clickMaxRadius: 60,
     clickReplaceOldest: true,
     clickMotion: 1.0,
-    bloomEnabled: true,
+    bloomEnabled: false,
     bloomStrength: 0.75,
     bloomRadius: 0.35,
     bloomThreshold: 0.0,
@@ -131,6 +135,7 @@ export class MetaballsDishRender {
         uThreshold: { value: this.settings.threshold },
         uLineWidthPx: { value: this.settings.lineWidthPx },
         uSoftness: { value: this.settings.softness },
+        uEdgeGlowStrength: { value: this.settings.edgeGlowStrength },
         uShowContours: { value: this.settings.showContours },
         uPalette0: { value: new THREE.Color(0x000000) },
         uPalette1: { value: new THREE.Color(0x000000) },
@@ -195,7 +200,8 @@ export class MetaballsDishRender {
   }
 
   init({ showStats = true, showGui = true }: { showStats?: boolean; showGui?: boolean } = {}) {
-    if (typeof navigator !== 'undefined' && navigator.userAgent?.toLowerCase().includes('jsdom')) return false
+    if (typeof navigator !== 'undefined' && navigator.userAgent?.toLowerCase().includes('jsdom'))
+      return false
 
     this.width = Math.max(1, this.container.clientWidth)
     this.height = Math.max(1, this.container.clientHeight)
@@ -245,13 +251,30 @@ export class MetaballsDishRender {
 
   private applyPalette() {
     const preset = getPalette(this.settings.paletteName)
-    ;(this.finalMaterial.uniforms.uPalette0!.value as THREE.Color).setRGB(preset.colors[0].r, preset.colors[0].g, preset.colors[0].b)
-    ;(this.finalMaterial.uniforms.uPalette1!.value as THREE.Color).setRGB(preset.colors[1].r, preset.colors[1].g, preset.colors[1].b)
-    ;(this.finalMaterial.uniforms.uPalette2!.value as THREE.Color).setRGB(preset.colors[2].r, preset.colors[2].g, preset.colors[2].b)
-
-    ;(this.bloomMaterial.uniforms.uPalette0!.value as THREE.Color).copy(this.finalMaterial.uniforms.uPalette0!.value as THREE.Color)
-    ;(this.bloomMaterial.uniforms.uPalette1!.value as THREE.Color).copy(this.finalMaterial.uniforms.uPalette1!.value as THREE.Color)
-    ;(this.bloomMaterial.uniforms.uPalette2!.value as THREE.Color).copy(this.finalMaterial.uniforms.uPalette2!.value as THREE.Color)
+    ;(this.finalMaterial.uniforms.uPalette0!.value as THREE.Color).setRGB(
+      preset.colors[0].r,
+      preset.colors[0].g,
+      preset.colors[0].b,
+    )
+    ;(this.finalMaterial.uniforms.uPalette1!.value as THREE.Color).setRGB(
+      preset.colors[1].r,
+      preset.colors[1].g,
+      preset.colors[1].b,
+    )
+    ;(this.finalMaterial.uniforms.uPalette2!.value as THREE.Color).setRGB(
+      preset.colors[2].r,
+      preset.colors[2].g,
+      preset.colors[2].b,
+    )
+    ;(this.bloomMaterial.uniforms.uPalette0!.value as THREE.Color).copy(
+      this.finalMaterial.uniforms.uPalette0!.value as THREE.Color,
+    )
+    ;(this.bloomMaterial.uniforms.uPalette1!.value as THREE.Color).copy(
+      this.finalMaterial.uniforms.uPalette1!.value as THREE.Color,
+    )
+    ;(this.bloomMaterial.uniforms.uPalette2!.value as THREE.Color).copy(
+      this.finalMaterial.uniforms.uPalette2!.value as THREE.Color,
+    )
 
     this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
     this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
@@ -289,23 +312,48 @@ export class MetaballsDishRender {
     const f = gui.addFolder('Metaballs')
     f.close()
 
-    f.add(this.settings, 'ballCount', 1, 24, 1).name('Balls').onFinishChange(() => this.reset())
-    f.add(this.settings, 'animate').name('Animate').onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'threshold', 0.2, 4.0, 0.01).name('Threshold').onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'softness', 0.001, 0.2, 0.001).name('Softness').onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'speed', 0, 4, 0.01).name('Speed').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'ballCount', 1, 24, 1)
+      .name('Balls')
+      .onFinishChange(() => this.reset())
+    f.add(this.settings, 'animate')
+      .name('Animate')
+      .onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'threshold', 0.2, 4.0, 0.01)
+      .name('Threshold')
+      .onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'softness', 0.001, 0.2, 0.001)
+      .name('Softness')
+      .onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'edgeGlowStrength', 0, 1.0, 0.01)
+      .name('Edge glow')
+      .onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'speed', 0, 4, 0.01)
+      .name('Speed')
+      .onChange(() => (this.frameDirty = true))
     f.add(this.settings, 'gridSize', [128, 192, 256, 384, 512, 768, 1024])
       .name('Grid base')
       .onFinishChange(() => this.recreateFieldTarget())
-    f.add(this.settings, 'showContours').name('Contours').onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'lineWidthPx', 0.5, 6.0, 0.1).name('Line width').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'showContours')
+      .name('Contours')
+      .onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'lineWidthPx', 0.5, 6.0, 0.1)
+      .name('Line width')
+      .onChange(() => (this.frameDirty = true))
     f.add(this.settings, 'colorMode', { Single: 0, Palette: 1 })
       .name('Color mode')
       .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'paletteName', paletteOptions()).name('Palette').onChange(() => this.applyPalette())
-    f.add(this.settings, 'usePaletteBg').name('Palette bg').onChange(() => (this.frameDirty = true))
-    f.addColor(this.settings, 'blobColor').name('Blob color').onChange(() => (this.frameDirty = true))
-    f.addColor(this.settings, 'background').name('Background').onChange(() => (this.frameDirty = true))
+    f.add(this.settings, 'paletteName', paletteOptions())
+      .name('Palette')
+      .onChange(() => this.applyPalette())
+    f.add(this.settings, 'usePaletteBg')
+      .name('Palette bg')
+      .onChange(() => (this.frameDirty = true))
+    f.addColor(this.settings, 'blobColor')
+      .name('Blob color')
+      .onChange(() => (this.frameDirty = true))
+    f.addColor(this.settings, 'background')
+      .name('Background')
+      .onChange(() => (this.frameDirty = true))
 
     const s = gui.addFolder('Spawn')
     s.close()
@@ -363,7 +411,6 @@ export class MetaballsDishRender {
       magFilter: THREE.NearestFilter,
     })
     this.fieldRT.texture.generateMipmaps = false
-
     ;(this.fieldMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
     ;(this.finalMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
     this.finalMaterial.uniforms.uField!.value = this.fieldRT.texture
@@ -429,7 +476,6 @@ export class MetaballsDishRender {
     this.finalMesh.scale.set(this.width, this.height, 1)
     this.bloomMesh.scale.set(this.width, this.height, 1)
     this.bloomOverlayMesh.scale.set(this.width, this.height, 1)
-
     ;(this.fieldMaterial.uniforms.uWorldSize!.value as THREE.Vector2).set(this.width, this.height)
     this.renderer.getDrawingBufferSize(this.drawBufferSize)
     ;(this.finalMaterial.uniforms.uResolution!.value as THREE.Vector2).copy(this.drawBufferSize)
@@ -468,6 +514,7 @@ export class MetaballsDishRender {
       this.finalMaterial.uniforms.uSoftness!.value = this.settings.softness
       this.finalMaterial.uniforms.uLineWidthPx!.value = this.settings.lineWidthPx
       this.finalMaterial.uniforms.uShowContours!.value = this.settings.showContours
+      this.finalMaterial.uniforms.uEdgeGlowStrength!.value = this.settings.edgeGlowStrength
       this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
       this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
       ;(this.finalMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
@@ -484,7 +531,9 @@ export class MetaballsDishRender {
 
       if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
         this.bloomComposer.render()
-        const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }).readBuffer.texture
+        const bloomTexture = (
+          this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }
+        ).readBuffer.texture
         this.bloomOverlayMaterial.uniforms.tBloom!.value = bloomTexture
         this.bloomOverlayMaterial.uniforms.uBloomMix!.value = 1.0
         this.renderer.render(this.bloomOverlayScene, this.camera)
