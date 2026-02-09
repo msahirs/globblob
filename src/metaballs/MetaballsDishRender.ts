@@ -5,19 +5,87 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { getPalette, paletteOptions } from '@/presets/palettes'
-import {
-  BLOOM_MASK_FRAGMENT,
-  BLOOM_OVERLAY_FRAGMENT,
-  FIELD_FRAGMENT,
-  MARCHING_SQUARES_FRAGMENT,
-  PASS_THROUGH_VERTEX,
-} from './shaders'
+import { BLOOM_OVERLAY_FRAGMENT, PASS_THROUGH_VERTEX } from './shaders'
 
-type Ball = { x: number; y: number; vx: number; vy: number; r: number }
+type Cell = {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  r: number
+  seed: number
+}
 
-const MAX_BALLS = 32
-// Inner dashed ring in PetriSchaal.svg: r=283 inside viewBox 666
+type InitOptions = {
+  showStats?: boolean
+  showGui?: boolean
+}
+
 const PETRI_INNER_RADIUS_RATIO = 283 / 666
+const ABSOLUTE_MAX_CELLS = 1000
+const INITIAL_CELL_MIN = 3
+const INITIAL_CELL_MAX = 5
+
+const CELL_VERTEX = `
+attribute float instanceSeed;
+varying vec2 vUv;
+varying float vSeed;
+void main() {
+  vUv = uv;
+  vSeed = instanceSeed;
+  vec4 mvPosition = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+}
+`
+
+const CELL_FRAGMENT = `
+precision highp float;
+varying vec2 vUv;
+varying float vSeed;
+
+uniform int uColorMode;
+uniform vec3 uBlobColor;
+uniform vec3 uPalette0;
+uniform vec3 uPalette1;
+uniform vec3 uPalette2;
+uniform float uEdgeSoftness;
+
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float d = length(p);
+  if (d > 1.0) discard;
+
+  float edge = 1.0 - smoothstep(1.0 - uEdgeSoftness, 1.0, d);
+  float ring = smoothstep(0.50, 1.0, d);
+  float noise = fract(sin(vSeed * 91.17) * 43758.5453);
+
+  vec3 coreColor = (uColorMode == 0) ? uBlobColor : mix(uPalette1, uPalette2, 0.22 + 0.50 * noise);
+  vec3 rimColor = (uColorMode == 0) ? uBlobColor * 0.82 : mix(uPalette0, uPalette1, 0.45 + 0.35 * noise);
+  vec3 color = mix(coreColor, rimColor, ring);
+
+  gl_FragColor = vec4(color, edge);
+}
+`
+
+const BLOOM_CELL_FRAGMENT = `
+precision highp float;
+varying vec2 vUv;
+
+uniform int uColorMode;
+uniform vec3 uBlobColor;
+uniform vec3 uPalette2;
+uniform float uBloomGain;
+
+void main() {
+  vec2 p = vUv * 2.0 - 1.0;
+  float d = length(p);
+  if (d > 1.0) discard;
+
+  float glow = pow(max(0.0, 1.0 - d), 2.5);
+  vec3 base = (uColorMode == 0) ? uBlobColor : uPalette2;
+  gl_FragColor = vec4(base * glow * uBloomGain, glow);
+}
+`
 
 function rndFloat(min: number, max: number) {
   return min + (max - min) * Math.random()
@@ -28,75 +96,68 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function reflect(vx: number, vy: number, nx: number, ny: number) {
-  const d = vx * nx + vy * ny
-  return { vx: vx - 2 * d * nx, vy: vy - 2 * d * ny }
+  const dot = vx * nx + vy * ny
+  return { vx: vx - 2 * dot * nx, vy: vy - 2 * dot * ny }
 }
 
 export class MetaballsDishRender {
   private readonly container: HTMLElement
-  private renderer: THREE.WebGLRenderer
-  private camera: THREE.OrthographicCamera
-  private scene: THREE.Scene
-  private fieldScene: THREE.Scene
-  private resizeObserver: ResizeObserver | null = null
+  private readonly renderer: THREE.WebGLRenderer
+  private readonly camera: THREE.OrthographicCamera
+  private readonly scene: THREE.Scene
+  private readonly bloomScene: THREE.Scene
+  private readonly overlayScene: THREE.Scene
 
   private bloomComposer: EffectComposer | null = null
   private bloomPass: UnrealBloomPass | null = null
+  private overlayMaterial: THREE.ShaderMaterial
+  private overlayMesh: THREE.Mesh
 
-  private bloomScene: THREE.Scene
-  private bloomMaterial: THREE.ShaderMaterial
-  private bloomMesh: THREE.Mesh
-  private bloomOverlayScene: THREE.Scene
-  private bloomOverlayMaterial: THREE.ShaderMaterial
-  private bloomOverlayMesh: THREE.Mesh
-
+  private resizeObserver: ResizeObserver | null = null
   private stats: Stats | null = null
   private gui: GUI | null = null
 
-  private fieldRT: THREE.WebGLRenderTarget | null = null
-  private fieldMaterial: THREE.ShaderMaterial
-  private fieldMesh: THREE.Mesh
-  private finalMaterial: THREE.ShaderMaterial
-  private finalMesh: THREE.Mesh
+  private readonly baseMaterial: THREE.ShaderMaterial
+  private readonly bloomMaterial: THREE.ShaderMaterial
+  private readonly cellGeometry: THREE.PlaneGeometry
+  private readonly baseMesh: THREE.InstancedMesh
+  private readonly bloomMesh: THREE.InstancedMesh
+  private readonly instanceSeedAttr: THREE.InstancedBufferAttribute
 
-  private balls: Ball[] = []
-  private ballUniforms: THREE.Vector4[] = Array.from(
-    { length: MAX_BALLS },
-    () => new THREE.Vector4(),
-  )
+  private readonly tmpObject = new THREE.Object3D()
+  private readonly tmpVec3 = new THREE.Vector3()
+
+  private cells: Cell[] = []
+  private growthAccumulator = 0
   private lastMs = 0
-  private fieldDirty = true
   private frameDirty = true
 
   private width = 1
   private height = 1
-  private drawBufferSize = new THREE.Vector2()
-  private tmpVec3 = new THREE.Vector3()
 
   private settings = {
-    gridSize: 512,
-    ballCount: 10,
     animate: false,
-    speed: 1.0,
-    threshold: 1.0,
-    softness: 0.06,
-    lineWidthPx: 1.5,
-    edgeGlowStrength: 0.0,
-    showContours: false,
-    colorMode: 1 as 0 | 1, // 0=single, 1=palette
-    paletteName: 'Biolab',
-    usePaletteBg: false,
-    blobColor: '#2aa39b',
-    background: '#faf8e1',
+    growthRate: 1.2,
+    maxCells: 1000,
+    movementSpeed: 4.0,
+    motionJitter: 2.5,
+    motionDamping: 0.92,
+    buddingGap: 0.4,
+    cellRadiusMin: 4.0,
+    cellRadiusMax: 6.0,
+    collisionGap: 0.15,
+    parentBiasNewest: 0.35,
     addOnClick: true,
-    clickMinRadius: 18,
-    clickMaxRadius: 60,
-    clickReplaceOldest: true,
-    clickMotion: 1.0,
+    colorMode: 1 as 0 | 1,
+    paletteName: 'Microbial Green',
+    blobColor: '#20694A',
+    background: '#faf8e1',
+    edgeSoftness: 0.18,
     bloomEnabled: false,
-    bloomStrength: 0.75,
-    bloomRadius: 0.35,
-    bloomThreshold: 0.0,
+    bloomStrength: 0.45,
+    bloomRadius: 0.25,
+    bloomThreshold: 0.72,
+    bloomGain: 1.0,
     reset: () => this.reset(),
   }
 
@@ -108,104 +169,84 @@ export class MetaballsDishRender {
     this.renderer.autoClear = false
 
     this.scene = new THREE.Scene()
-    this.fieldScene = new THREE.Scene()
+    this.bloomScene = new THREE.Scene()
+    this.overlayScene = new THREE.Scene()
 
     this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10)
     this.camera.position.z = 1
 
-    this.fieldMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uWorldSize: { value: new THREE.Vector2(1, 1) },
-        uFieldSize: { value: new THREE.Vector2(1, 1) },
-        uBallCount: { value: 0 },
-        uBalls: { value: this.ballUniforms },
-      },
-      vertexShader: PASS_THROUGH_VERTEX,
-      fragmentShader: FIELD_FRAGMENT,
-      depthTest: false,
-      depthWrite: false,
-      transparent: false,
-    })
+    this.cellGeometry = new THREE.PlaneGeometry(2, 2)
+    const seeds = new Float32Array(ABSOLUTE_MAX_CELLS)
+    this.instanceSeedAttr = new THREE.InstancedBufferAttribute(seeds, 1)
+    this.cellGeometry.setAttribute('instanceSeed', this.instanceSeedAttr)
 
-    this.finalMaterial = new THREE.ShaderMaterial({
+    this.baseMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uField: { value: null },
-        uResolution: { value: new THREE.Vector2(1, 1) },
-        uFieldSize: { value: new THREE.Vector2(1, 1) },
-        uThreshold: { value: this.settings.threshold },
-        uLineWidthPx: { value: this.settings.lineWidthPx },
-        uSoftness: { value: this.settings.softness },
-        uEdgeGlowStrength: { value: this.settings.edgeGlowStrength },
-        uShowContours: { value: this.settings.showContours },
+        uColorMode: { value: this.settings.colorMode },
+        uBlobColor: { value: new THREE.Color(this.settings.blobColor) },
         uPalette0: { value: new THREE.Color(0x000000) },
         uPalette1: { value: new THREE.Color(0x000000) },
         uPalette2: { value: new THREE.Color(0x000000) },
-        uUsePaletteBg: { value: this.settings.usePaletteBg },
-        uColorMode: { value: this.settings.colorMode },
-        uBlobColor: { value: new THREE.Color(this.settings.blobColor) },
-        uBgColor: { value: new THREE.Color(this.settings.background) },
+        uEdgeSoftness: { value: this.settings.edgeSoftness },
       },
-      vertexShader: PASS_THROUGH_VERTEX,
-      fragmentShader: MARCHING_SQUARES_FRAGMENT,
-      depthTest: false,
+      vertexShader: CELL_VERTEX,
+      fragmentShader: CELL_FRAGMENT,
+      transparent: true,
       depthWrite: false,
-      transparent: false,
+      depthTest: false,
+      blending: THREE.NormalBlending,
     })
 
-    this.fieldMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.fieldMaterial)
-    this.finalMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.finalMaterial)
-    this.fieldScene.add(this.fieldMesh)
-    this.scene.add(this.finalMesh)
-
-    this.bloomScene = new THREE.Scene()
     this.bloomMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uField: { value: null },
-        uResolution: { value: new THREE.Vector2(1, 1) },
-        uFieldSize: { value: new THREE.Vector2(1, 1) },
-        uThreshold: { value: this.settings.threshold },
-        uSoftness: { value: this.settings.softness },
-        uPalette0: { value: new THREE.Color(0x000000) },
-        uPalette1: { value: new THREE.Color(0x000000) },
-        uPalette2: { value: new THREE.Color(0x000000) },
         uColorMode: { value: this.settings.colorMode },
         uBlobColor: { value: new THREE.Color(this.settings.blobColor) },
+        uPalette2: { value: new THREE.Color(0x000000) },
+        uBloomGain: { value: this.settings.bloomGain },
       },
-      vertexShader: PASS_THROUGH_VERTEX,
-      fragmentShader: BLOOM_MASK_FRAGMENT,
-      depthTest: false,
+      vertexShader: CELL_VERTEX,
+      fragmentShader: BLOOM_CELL_FRAGMENT,
+      transparent: true,
       depthWrite: false,
-      transparent: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
     })
-    this.bloomMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.bloomMaterial)
+
+    this.baseMesh = new THREE.InstancedMesh(this.cellGeometry, this.baseMaterial, ABSOLUTE_MAX_CELLS)
+    this.baseMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    this.baseMesh.count = 0
+    this.scene.add(this.baseMesh)
+
+    this.bloomMesh = new THREE.InstancedMesh(this.cellGeometry, this.bloomMaterial, ABSOLUTE_MAX_CELLS)
+    this.bloomMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    this.bloomMesh.count = 0
     this.bloomScene.add(this.bloomMesh)
 
-    this.bloomOverlayScene = new THREE.Scene()
-    this.bloomOverlayMaterial = new THREE.ShaderMaterial({
+    this.overlayMaterial = new THREE.ShaderMaterial({
       uniforms: {
         tBloom: { value: null },
         uBloomMix: { value: 1.0 },
       },
       vertexShader: PASS_THROUGH_VERTEX,
       fragmentShader: BLOOM_OVERLAY_FRAGMENT,
-      depthTest: false,
-      depthWrite: false,
       transparent: true,
+      depthWrite: false,
+      depthTest: false,
       blending: THREE.AdditiveBlending,
     })
-    this.bloomOverlayMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.bloomOverlayMaterial)
-    this.bloomOverlayScene.add(this.bloomOverlayMesh)
+    this.overlayMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.overlayMaterial)
+    this.overlayScene.add(this.overlayMesh)
 
     this.applyPalette()
   }
 
-  init({ showStats = true, showGui = true }: { showStats?: boolean; showGui?: boolean } = {}) {
-    if (typeof navigator !== 'undefined' && navigator.userAgent?.toLowerCase().includes('jsdom'))
+  init({ showStats = true, showGui = true }: InitOptions = {}) {
+    if (typeof navigator !== 'undefined' && navigator.userAgent?.toLowerCase().includes('jsdom')) {
       return false
+    }
 
     this.width = Math.max(1, this.container.clientWidth)
     this.height = Math.max(1, this.container.clientHeight)
-
     this.renderer.setSize(this.width, this.height)
     this.renderer.domElement.style.width = '100%'
     this.renderer.domElement.style.height = '100%'
@@ -216,12 +257,12 @@ export class MetaballsDishRender {
     this.resize()
     this.reset()
     this.initBloom()
+
     if (showStats) this.initStats()
     if (showGui) this.initGui()
 
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown)
     window.addEventListener('resize', this.resize)
-
     if (typeof ResizeObserver !== 'undefined') {
       this.resizeObserver = new ResizeObserver(() => this.resize())
       this.resizeObserver.observe(this.container)
@@ -232,6 +273,40 @@ export class MetaballsDishRender {
   setRunning(running: boolean) {
     this.settings.animate = running
     this.frameDirty = true
+  }
+
+  render(nowMs: number) {
+    this.stats?.begin()
+    try {
+      if (!this.lastMs) this.lastMs = nowMs
+      const dt = clamp((nowMs - this.lastMs) / 1000, 0, 0.05)
+      this.lastMs = nowMs
+
+      if (this.settings.animate) {
+        this.tick(dt)
+      }
+
+      if (!this.frameDirty) return
+      this.updateMaterials()
+
+      this.renderer.setClearColor(this.settings.background, 1)
+      this.renderer.setRenderTarget(null)
+      this.renderer.clear()
+      this.renderer.render(this.scene, this.camera)
+
+      if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
+        this.bloomComposer.render()
+        const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget })
+          .readBuffer.texture
+        this.overlayMaterial.uniforms.tBloom!.value = bloomTexture
+        this.overlayMaterial.uniforms.uBloomMix!.value = 1.0
+        this.renderer.render(this.overlayScene, this.camera)
+      }
+
+      this.frameDirty = false
+    } finally {
+      this.stats?.end()
+    }
   }
 
   private initStats() {
@@ -245,42 +320,71 @@ export class MetaballsDishRender {
     this.container.appendChild(stats.dom)
   }
 
-  private getDomainRadiusPx() {
-    return Math.min(this.width, this.height) * PETRI_INNER_RADIUS_RATIO
-  }
+  private initGui() {
+    const gui = new GUI()
+    this.gui = gui
+    gui.close()
 
-  private applyPalette() {
-    const preset = getPalette(this.settings.paletteName)
-    ;(this.finalMaterial.uniforms.uPalette0!.value as THREE.Color).setRGB(
-      preset.colors[0].r,
-      preset.colors[0].g,
-      preset.colors[0].b,
-    )
-    ;(this.finalMaterial.uniforms.uPalette1!.value as THREE.Color).setRGB(
-      preset.colors[1].r,
-      preset.colors[1].g,
-      preset.colors[1].b,
-    )
-    ;(this.finalMaterial.uniforms.uPalette2!.value as THREE.Color).setRGB(
-      preset.colors[2].r,
-      preset.colors[2].g,
-      preset.colors[2].b,
-    )
-    ;(this.bloomMaterial.uniforms.uPalette0!.value as THREE.Color).copy(
-      this.finalMaterial.uniforms.uPalette0!.value as THREE.Color,
-    )
-    ;(this.bloomMaterial.uniforms.uPalette1!.value as THREE.Color).copy(
-      this.finalMaterial.uniforms.uPalette1!.value as THREE.Color,
-    )
-    ;(this.bloomMaterial.uniforms.uPalette2!.value as THREE.Color).copy(
-      this.finalMaterial.uniforms.uPalette2!.value as THREE.Color,
-    )
+    const growthFolder = gui.addFolder('Growth')
+    growthFolder.close()
+    growthFolder.add(this.settings, 'growthRate', 0, 20, 0.1).name('Rate / sec')
+    growthFolder.add(this.settings, 'maxCells', 10, ABSOLUTE_MAX_CELLS, 1).name('Max cells')
+    growthFolder.add(this.settings, 'parentBiasNewest', 0.05, 1.0, 0.01).name('Chain bias')
+    growthFolder.add(this.settings, 'buddingGap', 0, 2.0, 0.05).name('Bud gap')
+    growthFolder.add(this.settings, 'reset').name('Reset')
 
-    this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
-    this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
-    this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
+    const cellFolder = gui.addFolder('Cells')
+    cellFolder.close()
+    cellFolder.add(this.settings, 'cellRadiusMin', 2, 10, 0.1).name('Min radius')
+    cellFolder.add(this.settings, 'cellRadiusMax', 2, 12, 0.1).name('Max radius')
+    cellFolder.add(this.settings, 'collisionGap', 0, 1.0, 0.05).name('Cell spacing')
+    cellFolder.add(this.settings, 'movementSpeed', 0, 20, 0.1).name('Speed px/s')
+    cellFolder.add(this.settings, 'motionJitter', 0, 12, 0.1).name('Jitter')
+    cellFolder.add(this.settings, 'motionDamping', 0.6, 1.0, 0.005).name('Damping')
+    cellFolder.add(this.settings, 'addOnClick').name('Click seed')
 
-    this.frameDirty = true
+    const colorFolder = gui.addFolder('Color')
+    colorFolder.close()
+    colorFolder.add(this.settings, 'colorMode', { Single: 0, Palette: 1 }).name('Color mode')
+    colorFolder
+      .add(this.settings, 'paletteName', paletteOptions())
+      .name('Palette')
+      .onChange(() => this.applyPalette())
+    colorFolder.addColor(this.settings, 'blobColor').name('Blob color')
+    colorFolder.addColor(this.settings, 'background').name('Background')
+    colorFolder.add(this.settings, 'edgeSoftness', 0.04, 0.4, 0.01).name('Edge softness')
+
+    const bloomFolder = gui.addFolder('Bloom')
+    bloomFolder.close()
+    bloomFolder
+      .add(this.settings, 'bloomEnabled')
+      .name('Enabled')
+      .onChange(() => {
+        if (this.bloomPass) this.bloomPass.enabled = this.settings.bloomEnabled
+        this.frameDirty = true
+      })
+    bloomFolder
+      .add(this.settings, 'bloomStrength', 0, 3, 0.01)
+      .name('Strength')
+      .onChange(() => {
+        if (this.bloomPass) this.bloomPass.strength = this.settings.bloomStrength
+        this.frameDirty = true
+      })
+    bloomFolder
+      .add(this.settings, 'bloomRadius', 0, 1, 0.01)
+      .name('Radius')
+      .onChange(() => {
+        if (this.bloomPass) this.bloomPass.radius = this.settings.bloomRadius
+        this.frameDirty = true
+      })
+    bloomFolder
+      .add(this.settings, 'bloomThreshold', 0, 1, 0.01)
+      .name('Threshold')
+      .onChange(() => {
+        if (this.bloomPass) this.bloomPass.threshold = this.settings.bloomThreshold
+        this.frameDirty = true
+      })
+    bloomFolder.add(this.settings, 'bloomGain', 0, 4, 0.05).name('Cell glow')
   }
 
   private initBloom() {
@@ -304,157 +408,205 @@ export class MetaballsDishRender {
     this.bloomPass = bloom
   }
 
-  private initGui() {
-    const gui = new GUI()
-    this.gui = gui
-    gui.close()
-
-    const f = gui.addFolder('Metaballs')
-    f.close()
-
-    f.add(this.settings, 'ballCount', 1, 24, 1)
-      .name('Balls')
-      .onFinishChange(() => this.reset())
-    f.add(this.settings, 'animate')
-      .name('Animate')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'threshold', 0.2, 4.0, 0.01)
-      .name('Threshold')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'softness', 0.001, 0.2, 0.001)
-      .name('Softness')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'edgeGlowStrength', 0, 1.0, 0.01)
-      .name('Edge glow')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'speed', 0, 4, 0.01)
-      .name('Speed')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'gridSize', [128, 192, 256, 384, 512, 768, 1024])
-      .name('Grid base')
-      .onFinishChange(() => this.recreateFieldTarget())
-    f.add(this.settings, 'showContours')
-      .name('Contours')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'lineWidthPx', 0.5, 6.0, 0.1)
-      .name('Line width')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'colorMode', { Single: 0, Palette: 1 })
-      .name('Color mode')
-      .onChange(() => (this.frameDirty = true))
-    f.add(this.settings, 'paletteName', paletteOptions())
-      .name('Palette')
-      .onChange(() => this.applyPalette())
-    f.add(this.settings, 'usePaletteBg')
-      .name('Palette bg')
-      .onChange(() => (this.frameDirty = true))
-    f.addColor(this.settings, 'blobColor')
-      .name('Blob color')
-      .onChange(() => (this.frameDirty = true))
-    f.addColor(this.settings, 'background')
-      .name('Background')
-      .onChange(() => (this.frameDirty = true))
-
-    const s = gui.addFolder('Spawn')
-    s.close()
-    s.add(this.settings, 'addOnClick').name('Click add')
-    s.add(this.settings, 'clickMinRadius', 4, 140, 1).name('Min radius')
-    s.add(this.settings, 'clickMaxRadius', 4, 220, 1).name('Max radius')
-    s.add(this.settings, 'clickReplaceOldest').name('Replace oldest')
-    s.add(this.settings, 'clickMotion', 0, 3, 0.01).name('Motion')
-
-    const b = gui.addFolder('Bloom')
-    b.close()
-    b.add(this.settings, 'bloomEnabled')
-      .name('Enabled')
-      .onChange(() => {
-        if (this.bloomPass) this.bloomPass.enabled = this.settings.bloomEnabled
-        this.frameDirty = true
-      })
-    b.add(this.settings, 'bloomStrength', 0, 3, 0.01)
-      .name('Strength')
-      .onChange(() => {
-        if (this.bloomPass) this.bloomPass.strength = this.settings.bloomStrength
-        this.frameDirty = true
-      })
-    b.add(this.settings, 'bloomRadius', 0, 1, 0.01)
-      .name('Radius')
-      .onChange(() => {
-        if (this.bloomPass) this.bloomPass.radius = this.settings.bloomRadius
-        this.frameDirty = true
-      })
-    b.add(this.settings, 'bloomThreshold', 0, 1, 0.01)
-      .name('Threshold')
-      .onChange(() => {
-        if (this.bloomPass) this.bloomPass.threshold = this.settings.bloomThreshold
-        this.frameDirty = true
-      })
-    f.add(this.settings, 'reset').name('Reset')
+  private updateMaterials() {
+    const blobColor = this.baseMaterial.uniforms.uBlobColor!.value as THREE.Color
+    const bloomBlobColor = this.bloomMaterial.uniforms.uBlobColor!.value as THREE.Color
+    blobColor.set(this.settings.blobColor)
+    bloomBlobColor.set(this.settings.blobColor)
+    this.baseMaterial.uniforms.uColorMode!.value = this.settings.colorMode
+    this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
+    this.baseMaterial.uniforms.uEdgeSoftness!.value = this.settings.edgeSoftness
+    this.bloomMaterial.uniforms.uBloomGain!.value = this.settings.bloomGain
   }
 
-  private recreateFieldTarget() {
-    this.fieldRT?.dispose()
-
-    const base = this.settings.gridSize
-    const aspect = this.width / Math.max(1, this.height)
-    let w = base
-    let h = base
-    if (aspect >= 1) w = Math.max(2, Math.round(base * aspect))
-    else h = Math.max(2, Math.round(base / aspect))
-
-    this.fieldRT = new THREE.WebGLRenderTarget(w, h, {
-      type: THREE.FloatType,
-      format: THREE.RGBAFormat,
-      depthBuffer: false,
-      stencilBuffer: false,
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-    })
-    this.fieldRT.texture.generateMipmaps = false
-    ;(this.fieldMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
-    ;(this.finalMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
-    this.finalMaterial.uniforms.uField!.value = this.fieldRT.texture
-    ;(this.bloomMaterial.uniforms.uFieldSize!.value as THREE.Vector2).set(w, h)
-    this.bloomMaterial.uniforms.uField!.value = this.fieldRT.texture
-
-    this.fieldDirty = true
+  private applyPalette() {
+    const palette = getPalette(this.settings.paletteName)
+    ;(this.baseMaterial.uniforms.uPalette0!.value as THREE.Color).setRGB(
+      palette.colors[0].r,
+      palette.colors[0].g,
+      palette.colors[0].b,
+    )
+    ;(this.baseMaterial.uniforms.uPalette1!.value as THREE.Color).setRGB(
+      palette.colors[1].r,
+      palette.colors[1].g,
+      palette.colors[1].b,
+    )
+    ;(this.baseMaterial.uniforms.uPalette2!.value as THREE.Color).setRGB(
+      palette.colors[2].r,
+      palette.colors[2].g,
+      palette.colors[2].b,
+    )
+    ;(this.bloomMaterial.uniforms.uPalette2!.value as THREE.Color).copy(
+      this.baseMaterial.uniforms.uPalette2!.value as THREE.Color,
+    )
     this.frameDirty = true
   }
 
   private reset() {
-    this.recreateFieldTarget()
+    this.cells = []
+    this.growthAccumulator = 0
 
-    this.balls = []
-    const ballCount = Math.min(MAX_BALLS, Math.max(1, Math.floor(this.settings.ballCount)))
-    const R = this.getDomainRadiusPx()
-
-    for (let i = 0; i < ballCount; i++) {
-      const r = rndFloat(16, 44)
-      const ang = rndFloat(0, Math.PI * 2)
-      const rad = rndFloat(0, Math.max(1, R - r))
-      this.balls.push({
-        x: Math.cos(ang) * rad,
-        y: Math.sin(ang) * rad,
-        vx: rndFloat(-1, 1),
-        vy: rndFloat(-1, 1),
-        r,
-      })
+    const initialCount = Math.floor(rndFloat(INITIAL_CELL_MIN, INITIAL_CELL_MAX + 0.999))
+    for (let i = 0; i < initialCount; i++) {
+      this.spawnSeedRandom()
     }
 
-    for (let i = 0; i < MAX_BALLS; i++) {
-      const b = this.balls[i]
-      if (!b) {
-        this.ballUniforms[i]!.set(0, 0, 0, 0)
-        continue
-      }
-      this.ballUniforms[i]!.set(b.x, b.y, b.r, 0)
-    }
-
-    this.fieldMaterial.uniforms.uBalls!.value = this.ballUniforms
-    this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
-
+    this.syncInstances()
     this.lastMs = 0
-    this.fieldDirty = true
+    this.frameDirty = true
+  }
+
+  private spawnSeedRandom() {
+    const radius = this.randomCellRadius()
+    const dishRadius = this.getDomainRadiusPx()
+    for (let attempt = 0; attempt < 24; attempt++) {
+      const ang = rndFloat(0, Math.PI * 2)
+      const rad = rndFloat(0, Math.max(1, dishRadius - radius))
+      const x = Math.cos(ang) * rad
+      const y = Math.sin(ang) * rad
+      if (!this.canPlaceCell(x, y, radius, -1)) continue
+      this.addCell(x, y, radius, rndFloat(-2, 2), rndFloat(-2, 2))
+      return true
+    }
+    return false
+  }
+
+  private randomCellRadius() {
+    const minRadius = Math.min(this.settings.cellRadiusMin, this.settings.cellRadiusMax)
+    const maxRadius = Math.max(this.settings.cellRadiusMin, this.settings.cellRadiusMax)
+    return rndFloat(minRadius, maxRadius)
+  }
+
+  private getDomainRadiusPx() {
+    return Math.min(this.width, this.height) * PETRI_INNER_RADIUS_RATIO
+  }
+
+  private addCell(x: number, y: number, r: number, vx: number, vy: number) {
+    if (this.cells.length >= ABSOLUTE_MAX_CELLS) return false
+    const cell: Cell = { x, y, r, vx, vy, seed: Math.random() }
+    this.cells.push(cell)
+    return true
+  }
+
+  private spawnBudFromPopulation() {
+    if (this.cells.length === 0 || this.cells.length >= this.settings.maxCells) return false
+
+    const retryCount = 48
+    for (let attempt = 0; attempt < retryCount; attempt++) {
+      const parentIndex = this.pickParentIndex()
+      const parent = this.cells[parentIndex]
+      if (!parent) continue
+
+      const childRadius = this.randomCellRadius()
+      const angle = rndFloat(0, Math.PI * 2)
+      const distance = parent.r + childRadius + this.settings.buddingGap
+      const x = parent.x + Math.cos(angle) * distance
+      const y = parent.y + Math.sin(angle) * distance
+
+      if (!this.canPlaceCell(x, y, childRadius, parentIndex)) continue
+
+      const kick = 1.8
+      const vx = parent.vx * 0.35 + Math.cos(angle) * rndFloat(0, kick)
+      const vy = parent.vy * 0.35 + Math.sin(angle) * rndFloat(0, kick)
+      return this.addCell(x, y, childRadius, vx, vy)
+    }
+    return false
+  }
+
+  private pickParentIndex() {
+    const total = this.cells.length
+    const newestWindow = Math.max(1, Math.floor(total * clamp(this.settings.parentBiasNewest, 0.05, 1.0)))
+    const start = Math.max(0, total - newestWindow)
+    return Math.floor(rndFloat(start, total))
+  }
+
+  private canPlaceCell(x: number, y: number, r: number, ignoreIndex: number) {
+    const dishRadius = this.getDomainRadiusPx()
+    const margin = r + this.settings.collisionGap
+    if (x * x + y * y > (dishRadius - margin) * (dishRadius - margin)) return false
+
+    const minDistScale = 1.0
+    for (let i = 0; i < this.cells.length; i++) {
+      if (i === ignoreIndex) continue
+      const c = this.cells[i]
+      if (!c) continue
+      const dx = x - c.x
+      const dy = y - c.y
+      const minDist = (r + c.r + this.settings.collisionGap) * minDistScale
+      if (dx * dx + dy * dy < minDist * minDist) return false
+    }
+    return true
+  }
+
+  private syncInstances() {
+    const count = Math.min(this.cells.length, ABSOLUTE_MAX_CELLS)
+    for (let i = 0; i < count; i++) {
+      const c = this.cells[i]
+      if (!c) continue
+      this.tmpObject.position.set(c.x, c.y, 0)
+      this.tmpObject.scale.set(c.r, c.r, 1)
+      this.tmpObject.updateMatrix()
+      this.baseMesh.setMatrixAt(i, this.tmpObject.matrix)
+      this.bloomMesh.setMatrixAt(i, this.tmpObject.matrix)
+      this.instanceSeedAttr.array[i] = c.seed
+    }
+
+    this.baseMesh.count = count
+    this.bloomMesh.count = count
+    this.baseMesh.instanceMatrix.needsUpdate = true
+    this.bloomMesh.instanceMatrix.needsUpdate = true
+    this.instanceSeedAttr.needsUpdate = true
+  }
+
+  private tick(dt: number) {
+    const dishRadius = this.getDomainRadiusPx()
+    const maxSpeed = this.settings.movementSpeed
+    const jitter = this.settings.motionJitter
+    const damping = Math.pow(this.settings.motionDamping, dt * 60)
+
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i]
+      if (!c) continue
+
+      c.vx += rndFloat(-1, 1) * jitter * dt
+      c.vy += rndFloat(-1, 1) * jitter * dt
+      c.vx *= damping
+      c.vy *= damping
+
+      const v = Math.hypot(c.vx, c.vy)
+      if (v > maxSpeed && v > 1e-6) {
+        const scale = maxSpeed / v
+        c.vx *= scale
+        c.vy *= scale
+      }
+
+      c.x += c.vx * dt
+      c.y += c.vy * dt
+
+      const allowed = Math.max(0, dishRadius - c.r - this.settings.collisionGap)
+      const d2 = c.x * c.x + c.y * c.y
+      if (d2 > allowed * allowed && d2 > 1e-6) {
+        const d = Math.sqrt(d2)
+        const nx = c.x / d
+        const ny = c.y / d
+        c.x = nx * allowed
+        c.y = ny * allowed
+        const rv = reflect(c.vx, c.vy, nx, ny)
+        c.vx = rv.vx * 0.5
+        c.vy = rv.vy * 0.5
+      }
+    }
+
+    this.growthAccumulator += this.settings.growthRate * dt
+    let births = Math.floor(this.growthAccumulator)
+    if (births > 0) this.growthAccumulator -= births
+
+    while (births > 0 && this.cells.length < this.settings.maxCells) {
+      if (!this.spawnBudFromPopulation()) break
+      births--
+    }
+
+    this.syncInstances()
     this.frameDirty = true
   }
 
@@ -464,7 +616,7 @@ export class MetaballsDishRender {
     this.renderer.setSize(this.width, this.height, false)
     this.bloomComposer?.setPixelRatio(this.renderer.getPixelRatio())
     this.bloomComposer?.setSize(this.width, this.height)
-    if (this.bloomPass) this.bloomPass.setSize(this.width, this.height)
+    this.bloomPass?.setSize(this.width, this.height)
 
     this.camera.left = -this.width / 2
     this.camera.right = this.width / 2
@@ -472,110 +624,13 @@ export class MetaballsDishRender {
     this.camera.bottom = -this.height / 2
     this.camera.updateProjectionMatrix()
 
-    this.fieldMesh.scale.set(this.width, this.height, 1)
-    this.finalMesh.scale.set(this.width, this.height, 1)
-    this.bloomMesh.scale.set(this.width, this.height, 1)
-    this.bloomOverlayMesh.scale.set(this.width, this.height, 1)
-    ;(this.fieldMaterial.uniforms.uWorldSize!.value as THREE.Vector2).set(this.width, this.height)
-    this.renderer.getDrawingBufferSize(this.drawBufferSize)
-    ;(this.finalMaterial.uniforms.uResolution!.value as THREE.Vector2).copy(this.drawBufferSize)
-    ;(this.bloomMaterial.uniforms.uResolution!.value as THREE.Vector2).copy(this.drawBufferSize)
-
-    this.recreateFieldTarget()
-  }
-
-  render(nowMs: number) {
-    const stats = this.stats
-    stats?.begin()
-    try {
-      if (!this.fieldRT) return
-
-      if (!this.lastMs) this.lastMs = nowMs
-      const baseDt = clamp((nowMs - this.lastMs) / 1000, 0, 0.05) * this.settings.speed
-      this.lastMs = nowMs
-
-      const dt = this.settings.animate ? baseDt : 0
-      this.tick(dt)
-
-      if (!this.fieldDirty && !this.frameDirty) return
-
-      if (this.fieldDirty) {
-        this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
-        this.renderer.setRenderTarget(this.fieldRT)
-        this.renderer.render(this.fieldScene, this.camera)
-        this.renderer.setRenderTarget(null)
-        this.fieldDirty = false
-        this.frameDirty = true
-      }
-
-      if (!this.frameDirty) return
-
-      this.finalMaterial.uniforms.uThreshold!.value = this.settings.threshold
-      this.finalMaterial.uniforms.uSoftness!.value = this.settings.softness
-      this.finalMaterial.uniforms.uLineWidthPx!.value = this.settings.lineWidthPx
-      this.finalMaterial.uniforms.uShowContours!.value = this.settings.showContours
-      this.finalMaterial.uniforms.uEdgeGlowStrength!.value = this.settings.edgeGlowStrength
-      this.finalMaterial.uniforms.uColorMode!.value = this.settings.colorMode
-      this.finalMaterial.uniforms.uUsePaletteBg!.value = this.settings.usePaletteBg
-      ;(this.finalMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
-      ;(this.finalMaterial.uniforms.uBgColor!.value as THREE.Color).set(this.settings.background)
-
-      this.bloomMaterial.uniforms.uThreshold!.value = this.settings.threshold
-      this.bloomMaterial.uniforms.uSoftness!.value = this.settings.softness
-      this.bloomMaterial.uniforms.uColorMode!.value = this.settings.colorMode
-      ;(this.bloomMaterial.uniforms.uBlobColor!.value as THREE.Color).set(this.settings.blobColor)
-
-      this.renderer.setRenderTarget(null)
-      this.renderer.clear()
-      this.renderer.render(this.scene, this.camera)
-
-      if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
-        this.bloomComposer.render()
-        const bloomTexture = (
-          this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }
-        ).readBuffer.texture
-        this.bloomOverlayMaterial.uniforms.tBloom!.value = bloomTexture
-        this.bloomOverlayMaterial.uniforms.uBloomMix!.value = 1.0
-        this.renderer.render(this.bloomOverlayScene, this.camera)
-      }
-
-      this.frameDirty = false
-    } finally {
-      stats?.end()
-    }
-  }
-
-  private tick(dt: number) {
-    if (dt <= 0) return
-    const R = this.getDomainRadiusPx()
-
-    for (let i = 0; i < this.balls.length; i++) {
-      const b = this.balls[i]!
-      b.x += b.vx * 140 * dt
-      b.y += b.vy * 140 * dt
-
-      const allowed = Math.max(0, R - b.r)
-      const d2 = b.x * b.x + b.y * b.y
-      if (d2 > allowed * allowed && d2 > 1e-6) {
-        const d = Math.sqrt(d2)
-        const nx = b.x / d
-        const ny = b.y / d
-        b.x = nx * allowed
-        b.y = ny * allowed
-        const rv = reflect(b.vx, b.vy, nx, ny)
-        b.vx = rv.vx
-        b.vy = rv.vy
-      }
-
-      this.ballUniforms[i]!.set(b.x, b.y, b.r, 0)
-    }
-
-    this.fieldDirty = true
+    this.overlayMesh.scale.set(this.width, this.height, 1)
     this.frameDirty = true
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (!this.settings.addOnClick) return
+    if (!this.settings.addOnClick || this.cells.length >= this.settings.maxCells) return
+
     const rect = this.renderer.domElement.getBoundingClientRect()
     const nx = (e.clientX - rect.left) / Math.max(1, rect.width)
     const ny = (e.clientY - rect.top) / Math.max(1, rect.height)
@@ -584,59 +639,57 @@ export class MetaballsDishRender {
     const ndcX = nx * 2 - 1
     const ndcY = -(ny * 2 - 1)
     const p = this.tmpVec3.set(ndcX, ndcY, 0).unproject(this.camera)
-    this.addBall(p.x, p.y)
-  }
 
-  private addBall(x: number, y: number) {
-    const minR = Math.min(this.settings.clickMinRadius, this.settings.clickMaxRadius)
-    const maxR = Math.max(this.settings.clickMinRadius, this.settings.clickMaxRadius)
-    const r = rndFloat(minR, maxR)
-
-    const R = this.getDomainRadiusPx()
-    const allowed = Math.max(0, R - r)
-    const d2 = x * x + y * y
-    if (d2 > allowed * allowed) return
-
-    const motion = this.settings.clickMotion
-    const ball: Ball = {
-      x,
-      y,
-      vx: rndFloat(-1, 1) * motion,
-      vy: rndFloat(-1, 1) * motion,
-      r,
-    }
-
-    if (this.balls.length >= MAX_BALLS) {
-      if (!this.settings.clickReplaceOldest) return
-      this.balls.shift()
-      this.balls.push(ball)
-
-      for (let i = 0; i < MAX_BALLS; i++) {
-        const b = this.balls[i]
-        if (!b) this.ballUniforms[i]!.set(0, 0, 0, 0)
-        else this.ballUniforms[i]!.set(b.x, b.y, b.r, 0)
+    if (this.cells.length === 0) {
+      const radius = this.randomCellRadius()
+      if (this.canPlaceCell(p.x, p.y, radius, -1)) {
+        this.addCell(p.x, p.y, radius, rndFloat(-1, 1), rndFloat(-1, 1))
+        this.syncInstances()
+        this.frameDirty = true
       }
-    } else {
-      this.balls.push(ball)
-      const i = this.balls.length - 1
-      this.ballUniforms[i]!.set(ball.x, ball.y, ball.r, 0)
+      return
     }
 
-    this.fieldMaterial.uniforms.uBalls!.value = this.ballUniforms
-    this.fieldMaterial.uniforms.uBallCount!.value = this.balls.length
-    this.fieldDirty = true
+    let nearestIndex = 0
+    let nearestD2 = Number.POSITIVE_INFINITY
+    for (let i = 0; i < this.cells.length; i++) {
+      const c = this.cells[i]
+      if (!c) continue
+      const dx = p.x - c.x
+      const dy = p.y - c.y
+      const d2 = dx * dx + dy * dy
+      if (d2 < nearestD2) {
+        nearestD2 = d2
+        nearestIndex = i
+      }
+    }
+
+    const parent = this.cells[nearestIndex]
+    if (!parent) return
+    const childR = this.randomCellRadius()
+    const dirX = p.x - parent.x
+    const dirY = p.y - parent.y
+    const dirLen = Math.hypot(dirX, dirY)
+    const nxDir = dirLen > 1e-4 ? dirX / dirLen : Math.cos(rndFloat(0, Math.PI * 2))
+    const nyDir = dirLen > 1e-4 ? dirY / dirLen : Math.sin(rndFloat(0, Math.PI * 2))
+    const distance = parent.r + childR + this.settings.buddingGap
+    const x = parent.x + nxDir * distance
+    const y = parent.y + nyDir * distance
+
+    if (!this.canPlaceCell(x, y, childR, nearestIndex)) return
+    this.addCell(x, y, childR, rndFloat(-1, 1), rndFloat(-1, 1))
+    this.syncInstances()
     this.frameDirty = true
   }
 
   dispose() {
     window.removeEventListener('resize', this.resize)
     this.renderer.domElement.removeEventListener('pointerdown', this.onPointerDown)
+    this.resizeObserver?.disconnect()
+    this.resizeObserver = null
 
     this.gui?.destroy()
     this.gui = null
-
-    this.resizeObserver?.disconnect()
-    this.resizeObserver = null
 
     this.stats?.dom.remove()
     this.stats = null
@@ -645,23 +698,15 @@ export class MetaballsDishRender {
     this.bloomComposer = null
     this.bloomPass = null
 
-    this.fieldRT?.dispose()
-    this.fieldRT = null
-
-    this.fieldMaterial.dispose()
-    this.finalMaterial.dispose()
+    this.baseMaterial.dispose()
     this.bloomMaterial.dispose()
-    this.bloomOverlayMaterial.dispose()
-
-    this.fieldMesh.geometry.dispose()
-    this.finalMesh.geometry.dispose()
-    this.bloomMesh.geometry.dispose()
-    this.bloomOverlayMesh.geometry.dispose()
+    this.overlayMaterial.dispose()
+    this.cellGeometry.dispose()
+    this.overlayMesh.geometry.dispose()
 
     this.scene.clear()
-    this.fieldScene.clear()
     this.bloomScene.clear()
-    this.bloomOverlayScene.clear()
+    this.overlayScene.clear()
 
     this.renderer.dispose()
     this.renderer.forceContextLoss()
