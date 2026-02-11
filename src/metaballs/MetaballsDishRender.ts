@@ -126,6 +126,7 @@ export class MetaballsDishRender {
 
   private readonly tmpObject = new THREE.Object3D()
   private readonly tmpVec3 = new THREE.Vector3()
+  private readonly tmpClearColor = new THREE.Color()
 
   private cells: Cell[] = []
   private growthAccumulator = 0
@@ -295,7 +296,11 @@ export class MetaballsDishRender {
       this.renderer.render(this.scene, this.camera)
 
       if (this.settings.bloomEnabled && this.bloomComposer && this.bloomPass) {
+        const prevAlpha = this.renderer.getClearAlpha()
+        this.renderer.getClearColor(this.tmpClearColor)
+        this.renderer.setClearColor(0x000000, 0)
         this.bloomComposer.render()
+        this.renderer.setClearColor(this.tmpClearColor, prevAlpha)
         const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget })
           .readBuffer.texture
         this.overlayMaterial.uniforms.tBloom!.value = bloomTexture
