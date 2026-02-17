@@ -22,7 +22,7 @@ type InitOptions = {
 }
 
 const PETRI_INNER_RADIUS_RATIO = 283 / 666
-const ABSOLUTE_MAX_CELLS = 1000
+const ABSOLUTE_MAX_CELLS = 5000
 const INITIAL_CELL_MIN = 3
 const INITIAL_CELL_MAX = 5
 
