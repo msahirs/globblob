@@ -328,6 +328,7 @@ export class MetaballsDishRender {
   private initGui() {
     const gui = new GUI()
     this.gui = gui
+    gui.domElement.style.zIndex = '40'
     gui.close()
 
     const growthFolder = gui.addFolder('Growth')
