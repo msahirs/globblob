@@ -19,7 +19,6 @@
   font-style: normal;
 }
 
-/* CSS Custom Properties for centralized theming */
 :root {
   --bg-primary: #00153a;
   --bg-petri: #00153a;
@@ -219,6 +218,7 @@ body {
   border-radius: 4px;
   font-size: 2vh;
   font-family: 'Anonymous Pro', monospace;
+  z-index: 10;
 }
 
 .sliderLabel {
@@ -251,10 +251,27 @@ body {
 
 .slider-vertical {
   transform: rotate(270deg);
-  transform-origin: 50% 50%;
-  width: 24vh;
-  margin-top: 12vh;
+  transform-origin: center;
+  width: 18vh;
+  height: 2.5vh;
 
+  margin: 0;
+}
+
+.verticalSliderContainer span {
+  color: var(--color-sliders-text);
+  font-size: 1.5vh;
+  font-family: 'Anonymous Pro', monospace;
+}
+
+.verticalSliderContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+
+  height: 24vh;   /* controls full height */
+  width: 6vh;     /* give space for labels */
 }
 .slider::-webkit-slider-runnable-track {
   height: 6px;

@@ -21,44 +21,39 @@
       <div class="sliders">
         <div class="slidersHorizontal">
 
-          <div class="sliderUnit">
-            <div class="sliderTextHorizontal">
-              <span class="sliderLabel">Draaisnelheid</span>
-              <div class="infoWrapper" @mouseenter="showInfo('draai')" @mouseleave="hideInfo" @click="toggleInfo('draai')">
-                <img :src="infoIconUrl" alt="Info" class="infoIcon" />
-                <div v-if="activeInfo === 'draai'" class="infoIconText">
-                  Bepaalt hoe snel de cultuur wordt gemengd. Te snel kan stress veroorzaken.
-                </div>
-              </div>
-            </div>
-            <input type="range" min="0" max="100" v-model="sliderDraaiSnelheid" class="slider slider-rotating-speed" :style="{ '--value': sliderDraaiSnelheid + '%' }" />
-          </div>
+          <SliderUnit
+            label="Draaisnelheid"
+            info-key="draai"
+            info-text="Bepaalt hoe snel de cultuur wordt gemengd. Te snel kan stress veroorzaken."
+            v-model="sliderDraaiSnelheid"
+            slider-class="slider-rotating-speed"
+            :min_value="rotationMin"
+            :max_value="rotationMax"
+            :steps="4"
+          />
 
-          <div class="sliderUnit">
-            <div class="sliderTextHorizontal">
-              <span class="sliderLabel">pH niveau</span>
-              <div class="infoWrapper" @mouseenter="showInfo('pH')" @mouseleave="hideInfo" @click="toggleInfo('pH')">
-                <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
-                <div v-if="activeInfo === 'pH'" class="infoIconText">
-                  pH niveau bepaalt de zuurgraad van de cultuur. Te zuur of te basisch kan de groei beïnvloeden.
-                </div>
-              </div>
-            </div>
-            <input type="range" min="0" max="100" v-model="sliderPHLevel" class="slider slider-PH" :style="{ '--value': sliderPHLevel + '%' }" />
-          </div>
+          <SliderUnit
+            label="pH niveau"
+            info-key="pH"
+            info-text="pH niveau bepaalt de zuurgraad van de cultuur. Te zuur of te basisch kan de groei beïnvloeden."
+            v-model="sliderPHLevel"
+            slider-class="slider-PH"
+            :min_value="phmin"
+            :max_value="phmax"
+            :steps="24"
+          />
 
-          <div class="sliderUnit">
-            <div class="sliderTextHorizontal">
-              <span class="sliderLabel">Zuurstof niveau</span>
-              <div class="infoWrapper" @mouseenter="showInfo('zuurstof')" @mouseleave="hideInfo" @click="toggleInfo('zuurstof')">
-                <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
-                <div v-if="activeInfo === 'zuurstof'" class="infoIconText">
-                  Zuurstof is essentieel voor aerobe micro-organismen. Te weinig zuurstof kan de groei beperken.
-                </div>
-              </div>
-            </div>
-            <input type="range" min="0" max="100" v-model="sliderZuurstofLevel" class="slider slider-oxygen" :style="{ '--value': sliderZuurstofLevel + '%' }" />
-          </div>
+          <SliderUnit
+            label="Zuurstof niveau"
+            info-key="zuurstof"
+            info-text="Zuurstof is essentieel voor aerobe micro-organismen. Te weinig zuurstof kan de groei beperken."
+            v-model="sliderZuurstofLevel"
+            slider-class="slider-oxygen"
+            :min_value="zuurstofMin"
+            :max_value="zuurstofMax"
+            :steps="20"
+          />
+
         </div>
         <div class="sliderUnitVertical">
           <div class="sliderTextHorizontal">
@@ -70,7 +65,11 @@
               </div>
             </div>
           </div>
-          <input type="range" min="0" max="100" v-model="sliderTemperature" class="slider slider-vertical" :style="{ '--pointer-color': tempColor, '--track-color': 'var(--slider-temp-track)', '--value': sliderTemperature + '%' }" />
+          <div class="verticalSliderContainer">
+            <span class="sliderMax">{{ tempmax }}</span>
+            <input type="range" min="tempmin" max="tempmax" v-model="sliderTemperature" class="slider slider-vertical" :style="{ '--pointer-color': tempColor, '--track-color': 'var(--slider-temp-track)', '--value': sliderTemperature + '%' }" />
+            <span class="sliderMin">{{ tempmin }}</span>
+          </div>
         </div>
       </div>
 
@@ -90,29 +89,44 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
 import PetriDishSim from '@/components/PetriDishSim.vue'
+import SliderUnit from '@/components/sliders/SliderUnit.vue'
 
 import titelUrl from '@/assets/bio/TitleDarkMode.svg'
 import infoIconUrl from '@/assets/bio/infoIconBlue.svg'
 
 const petriFrameColor = 'var(--petri-frame-color)'
 
-const sliderDraaiSnelheid = ref(50)
-const sliderPHLevel = ref(50)
-const sliderZuurstofLevel = ref(50)
-const sliderTemperature = ref(50)
+const sliderDraaiSnelheid = ref(1300)
+const sliderPHLevel = ref(7)
+const sliderZuurstofLevel = ref(0.5)
+const sliderTemperature = ref(30)
+
 const started = ref(false)
 
-const mapY = (value: number) => 130 - (value / 100) * 120
+const zuurstofMin = 0.6
+const zuurstofMax = 1.6
+
+const rotationMin = 800.0
+const rotationMax = 1400.0
+
+const phmin = 4.0
+const phmax = 10.0
+
+const tempmin = 20.0
+const tempmax = 40.0
+
+
+const mapY = (value: number, min: number, max: number) => 130 - ((value - min) / (max - min)) * 120
 
 const x1 = 80
 const x2 = 160
 const x3 = 240
 
-const y1 = computed(() => mapY(sliderDraaiSnelheid.value))
-const y2 = computed(() => mapY(sliderPHLevel.value))
-const y3 = computed(() => mapY(sliderZuurstofLevel.value))
+const y1 = computed(() => mapY(sliderDraaiSnelheid.value, rotationMin, rotationMax))
+const y2 = computed(() => mapY(sliderPHLevel.value, phmin, phmax))
+const y3 = computed(() => mapY(sliderZuurstofLevel.value, zuurstofMin, zuurstofMax))
 
 const graphPoints = computed(() => `${x1},${y1.value} ${x2},${y2.value} ${x3},${y3.value}`)
 
@@ -120,6 +134,12 @@ const activeInfo = ref<string | null>(null)
 const showInfo = (key: string) => (activeInfo.value = key)
 const hideInfo = () => (activeInfo.value = null)
 const toggleInfo = (key: string) => (activeInfo.value = activeInfo.value === key ? null : key)
+
+// Provide the info functions to child components
+provide('showInfo', showInfo)
+provide('hideInfo', hideInfo)
+provide('toggleInfo', toggleInfo)
+provide('activeInfo', activeInfo)
 
 // Function to interpolate between two hex colors
 function lerpColor(color1: string, color2: string, t: number): string {
