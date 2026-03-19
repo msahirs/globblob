@@ -29,15 +29,19 @@
   --color-info-text: #00153a;
   --color-sliders-text: #ffffff;
   --color-fallback: #469a18;
-  --slider-orange-track: #012a72;
-  --slider-orange-pointer: #ffe000;
-  --slider-green-track: #012a72;
-  --slider-green-pointer: #FF7BBA;
-  --slider-blue-track: #012a72;
-  --slider-blue-pointer: #00FF85;
+  --slider-rotating-speed-track: #012a72;
+  --slider-rotating-speed-pointer: #00C6FF;
+  --slider-PH-track: #012a72;
+  --slider-PH-pointer: #FF7BBA;
+  --slider-oxygen-track: #012a72;
+  --slider-oxygen-pointer: #00FF85;
   --slider-red-track: #012a72;
   --slider-red-pointer: #ff0000;
+  --slider-temp-track: #012a72;
+  --slider-temp-pointer-min: #ffe000;
+  --slider-temp-pointer-max: #ff0000;
   --petri-frame-color: #ffffff;
+  --bg-petri-blob: #20694A;
 }
 
 /* Reset / base */
@@ -169,11 +173,20 @@ body {
   position: absolute;
   bottom: 5vh;
   left: 0vw;
-  width: 38vw;
+  width: 50vw;
   display: flex;
-  flex-direction: column;
-  max-width: 35vw;
+  flex-direction: row;
+  max-width: 60vw;
   padding: 0% 0% 0% 7%;
+}
+
+.slidersHorizontal {
+  width: 30vw;
+}
+
+.sliderUnitVertical {
+  height: 30vh;
+  margin-left: 5vw;
 }
 
 .sliderUnit {
@@ -236,6 +249,13 @@ body {
   );
 }
 
+.slider-vertical {
+  transform: rotate(270deg);
+  transform-origin: 50% 50%;
+  width: 24vh;
+  margin-top: 12vh;
+
+}
 .slider::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 3px;
@@ -247,7 +267,7 @@ body {
   width: 2.5vh;
   height: 2.5vh;
   border-radius: 50%;
-  background: var(--pointer-color);
+  background: transparent;
   cursor: pointer;
   margin-top: -0.9vh;
 }
@@ -262,7 +282,7 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--pointer-color);
+  background: transparent;
   border: none;
   cursor: pointer;
 }
@@ -273,20 +293,20 @@ body {
   border-radius: 3px;
 }
 
-.slider-orange {
-  --track-color: var(--slider-orange-track);
-  --pointer-color: var(--slider-orange-pointer);
+.slider-rotating-speed {
+  --track-color: var(--slider-rotating-speed-track);
+  --pointer-color: var(--slider-rotating-speed-pointer);
   color: var(--pointer-color);
 }
 
-.slider-green {
-  --track-color: var(--slider-green-track);
-  --pointer-color: var(--slider-green-pointer);
+.slider-PH {
+  --track-color: var(--slider-PH-track);
+  --pointer-color: var(--slider-PH-pointer);
   color: var(--pointer-color);
 }
 
-.slider-blue {
-  --track-color: var(--slider-blue-track);
-  --pointer-color: var(--slider-blue-pointer);
+.slider-oxygen {
+  --track-color: var(--slider-oxygen-track);
+  --pointer-color: var(--slider-oxygen-pointer);
   color: var(--pointer-color);
 }

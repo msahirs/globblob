@@ -19,43 +19,58 @@
       </div>
 
       <div class="sliders">
-        <div class="sliderUnit">
-          <div class="sliderTextHorizontal">
-            <span class="sliderLabel">Draaisnelheid</span>
-            <div class="infoWrapper" @mouseenter="showInfo('draai')" @mouseleave="hideInfo" @click="toggleInfo('draai')">
-              <img :src="infoIconUrl" alt="Info" class="infoIcon" />
-              <div v-if="activeInfo === 'draai'" class="infoIconText">
-                Bepaalt hoe snel de cultuur wordt gemengd. Te snel kan stress veroorzaken.
-              </div>
-            </div>
-          </div>
-          <input type="range" min="0" max="100" v-model="sliderDraaiSnelheid" class="slider slider-orange" :style="{ '--value': sliderDraaiSnelheid + '%' }" />
-        </div>
+        <div class="slidersHorizontal">
 
-        <div class="sliderUnit">
-          <div class="sliderTextHorizontal">
-            <span class="sliderLabel">pH niveau</span>
-            <div class="infoWrapper" @mouseenter="showInfo('pH')" @mouseleave="hideInfo" @click="toggleInfo('pH')">
-              <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
-              <div v-if="activeInfo === 'pH'" class="infoIconText">
-                pH niveau bepaalt de zuurgraad van de cultuur. Te zuur of te basisch kan de groei beïnvloeden.
+          <div class="sliderUnit">
+            <div class="sliderTextHorizontal">
+              <span class="sliderLabel">Draaisnelheid</span>
+              <div class="infoWrapper" @mouseenter="showInfo('draai')" @mouseleave="hideInfo" @click="toggleInfo('draai')">
+                <img :src="infoIconUrl" alt="Info" class="infoIcon" />
+                <div v-if="activeInfo === 'draai'" class="infoIconText">
+                  Bepaalt hoe snel de cultuur wordt gemengd. Te snel kan stress veroorzaken.
+                </div>
               </div>
             </div>
+            <input type="range" min="0" max="100" v-model="sliderDraaiSnelheid" class="slider slider-rotating-speed" :style="{ '--value': sliderDraaiSnelheid + '%' }" />
           </div>
-          <input type="range" min="0" max="100" v-model="sliderPHLevel" class="slider slider-green" :style="{ '--value': sliderPHLevel + '%' }" />
-        </div>
 
-        <div class="sliderUnit">
+          <div class="sliderUnit">
+            <div class="sliderTextHorizontal">
+              <span class="sliderLabel">pH niveau</span>
+              <div class="infoWrapper" @mouseenter="showInfo('pH')" @mouseleave="hideInfo" @click="toggleInfo('pH')">
+                <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
+                <div v-if="activeInfo === 'pH'" class="infoIconText">
+                  pH niveau bepaalt de zuurgraad van de cultuur. Te zuur of te basisch kan de groei beïnvloeden.
+                </div>
+              </div>
+            </div>
+            <input type="range" min="0" max="100" v-model="sliderPHLevel" class="slider slider-PH" :style="{ '--value': sliderPHLevel + '%' }" />
+          </div>
+
+          <div class="sliderUnit">
+            <div class="sliderTextHorizontal">
+              <span class="sliderLabel">Zuurstof niveau</span>
+              <div class="infoWrapper" @mouseenter="showInfo('zuurstof')" @mouseleave="hideInfo" @click="toggleInfo('zuurstof')">
+                <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
+                <div v-if="activeInfo === 'zuurstof'" class="infoIconText">
+                  Zuurstof is essentieel voor aerobe micro-organismen. Te weinig zuurstof kan de groei beperken.
+                </div>
+              </div>
+            </div>
+            <input type="range" min="0" max="100" v-model="sliderZuurstofLevel" class="slider slider-oxygen" :style="{ '--value': sliderZuurstofLevel + '%' }" />
+          </div>
+        </div>
+        <div class="sliderUnitVertical">
           <div class="sliderTextHorizontal">
-            <span class="sliderLabel">Zuurstof niveau</span>
-            <div class="infoWrapper" @mouseenter="showInfo('zuurstof')" @mouseleave="hideInfo" @click="toggleInfo('zuurstof')">
+            <span class="sliderLabel">Temperatuur</span>
+            <div class="infoWrapper" @mouseenter="showInfo('Temperatuur')" @mouseleave="hideInfo" @click="toggleInfo('Temperatuur')">
               <img :src="infoIconUrl" alt="Info icon" class="infoIcon" />
-              <div v-if="activeInfo === 'zuurstof'" class="infoIconText">
-                Zuurstof is essentieel voor aerobe micro-organismen. Te weinig zuurstof kan de groei beperken.
+              <div v-if="activeInfo === 'Temperatuur'" class="infoIconText">
+                Temperatuur beïnvloedt de groeisnelheid en het gedrag van micro-organismen.
               </div>
             </div>
           </div>
-          <input type="range" min="0" max="100" v-model="sliderZuurstofLevel" class="slider slider-blue" :style="{ '--value': sliderZuurstofLevel + '%' }" />
+          <input type="range" min="0" max="100" v-model="sliderTemperature" class="slider slider-vertical" :style="{ '--pointer-color': tempColor, '--track-color': 'var(--slider-temp-track)', '--value': sliderTemperature + '%' }" />
         </div>
       </div>
 
@@ -86,6 +101,7 @@ const petriFrameColor = 'var(--petri-frame-color)'
 const sliderDraaiSnelheid = ref(50)
 const sliderPHLevel = ref(50)
 const sliderZuurstofLevel = ref(50)
+const sliderTemperature = ref(50)
 const started = ref(false)
 
 const mapY = (value: number) => 130 - (value / 100) * 120
@@ -104,5 +120,43 @@ const activeInfo = ref<string | null>(null)
 const showInfo = (key: string) => (activeInfo.value = key)
 const hideInfo = () => (activeInfo.value = null)
 const toggleInfo = (key: string) => (activeInfo.value = activeInfo.value === key ? null : key)
+
+// Function to interpolate between two hex colors
+function lerpColor(color1: string, color2: string, t: number): string {
+  const c1 = hexToRgb(color1)
+  const c2 = hexToRgb(color2)
+  if (!c1 || !c2) return color1
+  const r = Math.round(c1.r + (c2.r - c1.r) * t)
+  const g = Math.round(c1.g + (c2.g - c1.g) * t)
+  const b = Math.round(c1.b + (c2.b - c1.b) * t)
+  return rgbToHex(r, g, b)
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!result) return null
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_, r, g, b] = result
+
+  if (!r || !g || !b) return null
+
+  return {
+    r: parseInt(r, 16),
+    g: parseInt(g, 16),
+    b: parseInt(b, 16)
+  }
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)
+}
+
+const tempColor = computed(() => {
+  const minColor = '#ffe000'
+  const maxColor = '#ff0000'
+  const t = sliderTemperature.value / 100
+  return lerpColor(minColor, maxColor, t)
+})
 </script>
 
