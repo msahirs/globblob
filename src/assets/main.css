@@ -19,6 +19,27 @@
   font-style: normal;
 }
 
+/* CSS Custom Properties for centralized theming */
+:root {
+  --bg-primary: #00153a;
+  --bg-petri: #00153a;
+  --color-start-button: #00FF85;
+  --color-graph-axes: #ffffff;
+  --color-info-bg: #00C6FF;
+  --color-info-text: #00153a;
+  --color-sliders-text: #ffffff;
+  --color-fallback: #469a18;
+  --slider-orange-track: #012a72;
+  --slider-orange-pointer: #ffe000;
+  --slider-green-track: #012a72;
+  --slider-green-pointer: #FF7BBA;
+  --slider-blue-track: #012a72;
+  --slider-blue-pointer: #00FF85;
+  --slider-red-track: #012a72;
+  --slider-red-pointer: #ff0000;
+  --petri-frame-color: #ffffff;
+}
+
 /* Reset / base */
 * {
   box-sizing: border-box;
@@ -33,7 +54,7 @@ body,
 }
 
 body {
-  background-color: #faf8e1;
+  background-color: var(--bg-primary);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   overflow: hidden;
 }
@@ -70,8 +91,8 @@ body {
   margin-top: 20px;
   padding: 12px 40px;
   font-size: 1.5rem;
-  background-color: #ec6526;
-  color: white;
+  background-color: var(--color-start-button);
+  color: var(--bg-primary);
   border: none;
   border-radius: 4% / 10%;
   cursor: pointer;
@@ -94,7 +115,7 @@ body {
   inset: 0;
   overflow: hidden;
   clip-path: circle(42.5% at 50% 50%);
-  background: #faf8e1;
+  background: #00153a;
 }
 
 .petriFrame {
@@ -104,6 +125,28 @@ body {
   height: 100%;
   pointer-events: none;
   user-select: none;
+}
+
+.petriSimRoot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.petriSimCanvas {
+  width: 100%;
+  height: 100%;
+}
+
+.petriSimFallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(0, 0, 0, 0.7);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: var(--bg-primary);
 }
 
 .graphContainer {
@@ -119,7 +162,7 @@ body {
 
 .axis {
   stroke-width: 2;
-  stroke: #ec6526;
+  stroke: var(--color-graph-axes);
 }
 
 .sliders {
@@ -157,8 +200,8 @@ body {
   left: 28vw;
   width: 30vw;
   height: 10vh;
-  background-color: #aedacb;
-  color: #216d71;
+  background-color: var(--color-info-bg);
+  color: var(--color-info-text);
   padding: 2vh 1vw;
   border-radius: 4px;
   font-size: 2vh;
@@ -170,6 +213,7 @@ body {
   margin-bottom: 1vh;
   display: block;
   font-family: 'Anonymous Pro', monospace;
+  color: var(--color-sliders-text);
 }
 
 .slider {
@@ -200,12 +244,12 @@ body {
 
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 2.5vh;
+  height: 2.5vh;
   border-radius: 50%;
   background: var(--pointer-color);
   cursor: pointer;
-  margin-top: -7px;
+  margin-top: -0.9vh;
 }
 
 .slider::-moz-range-track {
@@ -215,34 +259,34 @@ body {
 }
 
 .slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  background: #ff0000;
+  background: var(--pointer-color);
   border: none;
   cursor: pointer;
 }
 
 .slider::-moz-range-progress {
-  background: #ff0000;
+  background: var(--pointer-color);
   height: 6px;
   border-radius: 3px;
 }
 
 .slider-orange {
-  --track-color: #f7c063;
-  --pointer-color: #ec6526;
+  --track-color: var(--slider-orange-track);
+  --pointer-color: var(--slider-orange-pointer);
   color: var(--pointer-color);
 }
 
 .slider-green {
-  --track-color: #c7e8b5;
-  --pointer-color: #20694a;
+  --track-color: var(--slider-green-track);
+  --pointer-color: var(--slider-green-pointer);
   color: var(--pointer-color);
 }
 
 .slider-blue {
-  --track-color: #b5e8d4;
-  --pointer-color: #216d71;
+  --track-color: var(--slider-blue-track);
+  --pointer-color: var(--slider-blue-pointer);
   color: var(--pointer-color);
 }

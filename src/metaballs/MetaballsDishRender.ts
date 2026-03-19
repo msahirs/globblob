@@ -152,7 +152,7 @@ export class MetaballsDishRender {
     colorMode: 1 as 0 | 1,
     paletteName: 'Microbial Green',
     blobColor: '#20694A',
-    background: '#faf8e1',
+    background: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri').trim(),
     edgeSoftness: 0.18,
     bloomEnabled: false,
     bloomStrength: 0.45,

@@ -76,6 +76,6 @@ onUnmounted(() => {
   color: rgba(0, 0, 0, 0.7);
   font-weight: 700;
   letter-spacing: 0.02em;
-  background: rgba(250, 248, 225, 0.85);
+  background: var(--bg-primary);
 }
 </style>

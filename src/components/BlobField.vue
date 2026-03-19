@@ -317,6 +317,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100vh;
   overflow: hidden;
+
 }
 
 .canvas-container {
@@ -329,12 +330,12 @@ onUnmounted(() => {
   top: 10px;
   width: 100%;
   text-align: center;
-  color: #fff;
+  color: var(--bg-primary);
   z-index: 100;
   display: block;
 }
 
 .info a {
-  color: #08f;
+  color: var(--color-info-text);
 }
 </style>

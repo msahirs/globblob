@@ -10,11 +10,11 @@
           <line x1="20" y1="10" x2="20" y2="130" class="axis" />
           <line x1="20" y1="130" x2="280" y2="130" class="axis" />
 
-          <polyline :points="graphPoints" fill="none" stroke="#EC6526" stroke-width="3" />
+          <polyline :points="graphPoints" fill="none" stroke="var(--color-graph-axes)" stroke-width="3" />
 
-          <circle :cx="x1" :cy="y1" r="5" fill="#EC6526" />
-          <circle :cx="x2" :cy="y2" r="5" fill="#EC6526" />
-          <circle :cx="x3" :cy="y3" r="5" fill="#EC6526" />
+          <circle :cx="x1" :cy="y1" r="5" fill="var(--color-graph-axes)" />
+          <circle :cx="x2" :cy="y2" r="5" fill="var(--color-graph-axes)" />
+          <circle :cx="x3" :cy="y3" r="5" fill="var(--color-graph-axes)" />
         </svg>
       </div>
 
@@ -66,7 +66,10 @@
       <div class="petriClip">
         <PetriDishSim :running="started" />
       </div>
-      <img :src="petriFrameUrl" alt="Petri dish" class="petriFrame" />
+      <svg width="666" height="666" viewBox="0 0 666 666" fill="none" xmlns="http://www.w3.org/2000/svg" class="petriFrame">
+        <circle cx="333" cy="333" r="330.5" :stroke="petriFrameColor" stroke-width="5" stroke-dasharray="20 20"/>
+        <circle cx="332.5" cy="332.5" r="283" :stroke="petriFrameColor" stroke-width="5" stroke-dasharray="20 20"/>
+      </svg>
     </div>
   </div>
 </template>
@@ -75,9 +78,10 @@
 import { computed, ref } from 'vue'
 import PetriDishSim from '@/components/PetriDishSim.vue'
 
-import titelUrl from '@/assets/bio/titel.svg'
-import infoIconUrl from '@/assets/bio/infoIcon.svg'
-import petriFrameUrl from '@/assets/bio/PetriDishFrame.svg'
+import titelUrl from '@/assets/bio/TitleDarkMode.svg'
+import infoIconUrl from '@/assets/bio/infoIconBlue.svg'
+
+const petriFrameColor = 'var(--petri-frame-color)'
 
 const sliderDraaiSnelheid = ref(50)
 const sliderPHLevel = ref(50)
