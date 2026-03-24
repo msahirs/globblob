@@ -148,8 +148,8 @@ export class MetaballsDishRender {
     cellRadiusMax: 6.0,
     collisionGap: 0.15,
     parentBiasNewest: 0.35,
-    addOnClick: true,
-    colorMode: 1 as 0 | 1,
+    addOnClick: false,
+    colorMode: 0 as 0 | 1,
     paletteName: 'Microbial Green',
     blobColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri-blob').trim(),
     background: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri').trim(),
@@ -347,7 +347,7 @@ export class MetaballsDishRender {
     cellFolder.add(this.settings, 'movementSpeed', 0, 20, 0.1).name('Speed px/s')
     cellFolder.add(this.settings, 'motionJitter', 0, 12, 0.1).name('Jitter')
     cellFolder.add(this.settings, 'motionDamping', 0.6, 1.0, 0.005).name('Damping')
-    cellFolder.add(this.settings, 'addOnClick').name('Click seed')
+    // cellFolder.add(this.settings, 'addOnClick').name('Click seed') // Disabled click-to-spawn
 
     const colorFolder = gui.addFolder('Color')
     colorFolder.close()
@@ -356,7 +356,12 @@ export class MetaballsDishRender {
       .add(this.settings, 'paletteName', paletteOptions())
       .name('Palette')
       .onChange(() => this.applyPalette())
-    colorFolder.addColor(this.settings, 'blobColor').name('Blob color')
+    colorFolder
+      .addColor(this.settings, 'blobColor')
+      .name('Blob color')
+      .onChange(() => {
+        this.frameDirty = true
+      })
     colorFolder.addColor(this.settings, 'background').name('Background')
     colorFolder.add(this.settings, 'edgeSoftness', 0.04, 0.4, 0.01).name('Edge softness')
 
