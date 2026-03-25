@@ -5,7 +5,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { getPalette, paletteOptions } from '@/presets/palettes'
-import { BLOOM_OVERLAY_FRAGMENT, PASS_THROUGH_VERTEX } from './shaders'
+import { BLOOM_OVERLAY_FRAGMENT, PASS_THROUGH_VERTEX } from './petriSimShaders'
 
 type Cell = {
   x: number
@@ -100,7 +100,7 @@ function reflect(vx: number, vy: number, nx: number, ny: number) {
   return { vx: vx - 2 * dot * nx, vy: vy - 2 * dot * ny }
 }
 
-export class MetaballsDishRender {
+export class PetriSimRenderer {
   private readonly container: HTMLElement
   private readonly renderer: THREE.WebGLRenderer
   private readonly camera: THREE.OrthographicCamera
@@ -283,6 +283,11 @@ export class MetaballsDishRender {
 
   setRunning(running: boolean) {
     this.settings.animate = running
+    this.frameDirty = true
+  }
+
+  setGrowthRate(growthRate: number) {
+    this.settings.growthRate = clamp(growthRate, 0, 20)
     this.frameDirty = true
   }
 
