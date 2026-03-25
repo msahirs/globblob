@@ -1,9 +1,5 @@
 import { parse, type MathNode, type SymbolNode } from 'mathjs'
-import {
-  DEFAULT_ENVIRONMENT_PARAMETERS,
-  GROWTH_RATE_LIMITS,
-  PREVIEW_X_DOMAIN,
-} from './defaults'
+import { DEFAULT_ENVIRONMENT_PARAMETERS, GROWTH_RATE_LIMITS, PREVIEW_X_DOMAIN } from './defaults'
 import type { EnvironmentParameters, ExpressionContext, GrowthPreviewPoint } from './types'
 
 type CompiledGrowthExpression = {
