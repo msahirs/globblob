@@ -4,6 +4,7 @@ import { MetaballsDishRender } from '@/metaballs/MetaballsDishRender'
 
 const props = defineProps<{
   running: boolean
+  growthRate: number
 }>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
@@ -30,6 +31,7 @@ onMounted(() => {
   supported.value = sim.init({ showStats: true, showGui: !isAutomated })
   if (!supported.value) return
 
+  sim.setGrowthRate(props.growthRate)
   sim.setRunning(props.running)
   raf = window.requestAnimationFrame(frame)
 })
@@ -38,6 +40,13 @@ watch(
   () => props.running,
   (v) => {
     sim?.setRunning(v)
+  },
+)
+
+watch(
+  () => props.growthRate,
+  (v) => {
+    sim?.setGrowthRate(v)
   },
 )
 
