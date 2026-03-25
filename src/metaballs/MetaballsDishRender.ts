@@ -148,10 +148,12 @@ export class MetaballsDishRender {
     cellRadiusMax: 6.0,
     collisionGap: 0.15,
     parentBiasNewest: 0.35,
-    addOnClick: true,
-    colorMode: 1 as 0 | 1,
+    addOnClick: false,
+    colorMode: 0 as 0 | 1,
     paletteName: 'Microbial Green',
-    blobColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri-blob').trim(),
+    blobColor: getComputedStyle(document.documentElement)
+      .getPropertyValue('--bg-petri-blob')
+      .trim(),
     background: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri').trim(),
     edgeSoftness: 0.18,
     bloomEnabled: false,
@@ -213,12 +215,20 @@ export class MetaballsDishRender {
       blending: THREE.AdditiveBlending,
     })
 
-    this.baseMesh = new THREE.InstancedMesh(this.cellGeometry, this.baseMaterial, ABSOLUTE_MAX_CELLS)
+    this.baseMesh = new THREE.InstancedMesh(
+      this.cellGeometry,
+      this.baseMaterial,
+      ABSOLUTE_MAX_CELLS,
+    )
     this.baseMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.baseMesh.count = 0
     this.scene.add(this.baseMesh)
 
-    this.bloomMesh = new THREE.InstancedMesh(this.cellGeometry, this.bloomMaterial, ABSOLUTE_MAX_CELLS)
+    this.bloomMesh = new THREE.InstancedMesh(
+      this.cellGeometry,
+      this.bloomMaterial,
+      ABSOLUTE_MAX_CELLS,
+    )
     this.bloomMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
     this.bloomMesh.count = 0
     this.bloomScene.add(this.bloomMesh)
@@ -301,8 +311,9 @@ export class MetaballsDishRender {
         this.renderer.setClearColor(0x000000, 0)
         this.bloomComposer.render()
         this.renderer.setClearColor(this.tmpClearColor, prevAlpha)
-        const bloomTexture = (this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget })
-          .readBuffer.texture
+        const bloomTexture = (
+          this.bloomComposer as unknown as { readBuffer: THREE.WebGLRenderTarget }
+        ).readBuffer.texture
         this.overlayMaterial.uniforms.tBloom!.value = bloomTexture
         this.overlayMaterial.uniforms.uBloomMix!.value = 1.0
         this.renderer.render(this.overlayScene, this.camera)
@@ -347,7 +358,7 @@ export class MetaballsDishRender {
     cellFolder.add(this.settings, 'movementSpeed', 0, 20, 0.1).name('Speed px/s')
     cellFolder.add(this.settings, 'motionJitter', 0, 12, 0.1).name('Jitter')
     cellFolder.add(this.settings, 'motionDamping', 0.6, 1.0, 0.005).name('Damping')
-    cellFolder.add(this.settings, 'addOnClick').name('Click seed')
+    // cellFolder.add(this.settings, 'addOnClick').name('Click seed') // Disabled click-to-spawn
 
     const colorFolder = gui.addFolder('Color')
     colorFolder.close()
@@ -356,7 +367,12 @@ export class MetaballsDishRender {
       .add(this.settings, 'paletteName', paletteOptions())
       .name('Palette')
       .onChange(() => this.applyPalette())
-    colorFolder.addColor(this.settings, 'blobColor').name('Blob color')
+    colorFolder
+      .addColor(this.settings, 'blobColor')
+      .name('Blob color')
+      .onChange(() => {
+        this.frameDirty = true
+      })
     colorFolder.addColor(this.settings, 'background').name('Background')
     colorFolder.add(this.settings, 'edgeSoftness', 0.04, 0.4, 0.01).name('Edge softness')
 
@@ -521,7 +537,10 @@ export class MetaballsDishRender {
 
   private pickParentIndex() {
     const total = this.cells.length
-    const newestWindow = Math.max(1, Math.floor(total * clamp(this.settings.parentBiasNewest, 0.05, 1.0)))
+    const newestWindow = Math.max(
+      1,
+      Math.floor(total * clamp(this.settings.parentBiasNewest, 0.05, 1.0)),
+    )
     const start = Math.max(0, total - newestWindow)
     return Math.floor(rndFloat(start, total))
   }
