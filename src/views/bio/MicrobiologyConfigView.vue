@@ -373,7 +373,7 @@ const canSetActive = computed(() => {
   )
 })
 
-let successNoticeTimer: ReturnType<typeof setTimeout> | null = null
+let successNoticeTimer: number | null = null
 
 function showSuccessNotice(message: string) {
   successNotice.value = message
@@ -470,7 +470,8 @@ onMounted(async () => {
   } catch {
     return
   }
-  activeConfigId.value = store.activeConfig?.id ?? store.configs.find((config) => config.isActive)?.id ?? null
+  activeConfigId.value =
+    store.activeConfig?.id ?? store.configs.find((config) => config.isActive)?.id ?? null
   selectedId.value = store.activeConfig?.id ?? store.configs[0]?.id ?? null
   applySelectedConfig()
 })

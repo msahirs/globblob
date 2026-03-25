@@ -10,7 +10,9 @@ import {
 
 describe('expressionEngine', () => {
   it('evaluates a valid expression against the microbiology parameters', () => {
-    const compiled = compileGrowthExpression('1 + ((oxygen - 0.6) / 1.0) * 2 - abs(((ph - 4) / 6) - 0.5)')
+    const compiled = compileGrowthExpression(
+      '1 + ((oxygen - 0.6) / 1.0) * 2 - abs(((ph - 4) / 6) - 0.5)',
+    )
     const value = evaluateCompiledGrowthExpression(
       compiled,
       createExpressionContext({ rotation: 1000, ph: 7, oxygen: 1.2, temperature: 31 }, 12),
