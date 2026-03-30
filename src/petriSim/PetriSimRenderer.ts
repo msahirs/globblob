@@ -151,16 +151,14 @@ export class PetriSimRenderer {
     addOnClick: false,
     colorMode: 0 as 0 | 1,
     paletteName: 'Microbial Green',
-    blobColor: getComputedStyle(document.documentElement)
-      .getPropertyValue('--bg-petri-blob')
-      .trim(),
-    background: getComputedStyle(document.documentElement).getPropertyValue('--bg-petri').trim(),
-    edgeSoftness: 0.18,
-    bloomEnabled: false,
-    bloomStrength: 0.45,
-    bloomRadius: 0.25,
-    bloomThreshold: 0.72,
-    bloomGain: 1.0,
+    blobColor: '#ddfa00',
+    background: '#00153a',
+    edgeSoftness: 0.4,
+    bloomEnabled: true,
+    bloomStrength: 1.83,
+    bloomRadius: 0.73,
+    bloomThreshold: 0,
+    bloomGain: 4.0,
     reset: () => this.reset(),
   }
 
