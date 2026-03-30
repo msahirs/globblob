@@ -41,6 +41,16 @@ describe('expressionEngine', () => {
     expect(value).toBeCloseTo(3)
   })
 
+  it('supports pi and e constants', () => {
+    const compiled = compileGrowthExpression('sin(pi / 2) + ln(e)')
+    const value = evaluateCompiledGrowthExpression(
+      compiled,
+      createExpressionContext({ rotation: 1000, ph: 7, oxygen: 1.2, temperature: 31 }, 12),
+    )
+
+    expect(value).toBeCloseTo(2)
+  })
+
   it('supports ^ for powers', () => {
     const compiled = compileGrowthExpression('t ^ 2')
     const value = evaluateCompiledGrowthExpression(

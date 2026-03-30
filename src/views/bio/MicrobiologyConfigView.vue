@@ -158,6 +158,13 @@
               </p>
             </div>
             <div>
+              <p class="fieldLabel">Constants</p>
+              <p class="inlineHelp">
+                <span>pi</span>
+                <span>e</span>
+              </p>
+            </div>
+            <div>
               <p class="fieldLabel">Functions</p>
               <p class="inlineHelp">
                 <span>sin</span>
@@ -180,7 +187,8 @@
             <strong>piecewise(condition, value, ..., default)</strong>, for example
             <strong>piecewise(t &lt; 10, 0.2, t &lt; 30, 1.4, 0.5)</strong>. Use
             <strong>ln</strong> for natural log, <strong>log</strong> for base-10 log, and
-            <strong>^</strong> for powers.
+            <strong>^</strong> for powers. Constants <strong>pi</strong> and <strong>e</strong>
+            are also available.
           </p>
 
           <p class="statusNotice" :class="validation.ok ? 'okNotice' : 'errorNotice'">
