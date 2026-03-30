@@ -79,13 +79,14 @@
             <input
               v-model.number="sliderTemperature"
               type="range"
-              min="20"
-              max="40"
+              :min="tempmin"
+              :max="tempmax"
+              step="0.5"
               class="slider slider-vertical"
               :style="{
                 '--pointer-color': tempColor,
                 '--track-color': 'var(--slider-temp-track)',
-                '--value': sliderTemperature + '%',
+                '--value': `${temperaturePercent}%`,
               }"
             />
             <span class="sliderMin">{{ tempmin }}</span>
@@ -255,10 +256,16 @@ const growthRate = computed(() => {
   return clampGrowthRate(raw)
 })
 
+const temperaturePercent = computed(() => {
+  const span = tempmax - tempmin
+  if (span <= 0) return 0
+  return ((sliderTemperature.value - tempmin) / span) * 100
+})
+
 const tempColor = computed(() => {
   const minColor = '#ffe000'
   const maxColor = '#ff0000'
-  const t = sliderTemperature.value / 100
+  const t = temperaturePercent.value / 100
   return lerpColor(minColor, maxColor, t)
 })
 
