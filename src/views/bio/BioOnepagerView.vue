@@ -140,7 +140,6 @@ import titelUrl from '@/assets/bio/TitleDarkMode.svg'
 import infoIconUrl from '@/assets/bio/infoIconBlue.svg'
 import { PARAMETER_RANGES } from '@/features/microbiology/defaults'
 import {
-  clampGrowthRate,
   compileGrowthExpression,
   createExpressionContext,
   evaluateCompiledGrowthExpression,
@@ -158,7 +157,8 @@ const started = ref(false)
 const elapsedSeconds = ref(0)
 const store = useMicrobiologyConfigsStore()
 
-let timerId: number | null = null
+let timerFrameId: number | null = null
+let timerStartMs: number | null = null
 
 const zuurstofMin = PARAMETER_RANGES.oxygen.min
 const zuurstofMax = PARAMETER_RANGES.oxygen.max
@@ -224,16 +224,26 @@ function rgbToHex(r: number, g: number, b: number): string {
 }
 
 function startTimer() {
-  if (timerId !== null) return
-  timerId = window.setInterval(() => {
-    elapsedSeconds.value += 0.25
-  }, 250)
+  if (timerFrameId !== null) return
+  timerStartMs = performance.now() - elapsedSeconds.value * 1000
+
+  const tick = (now: number) => {
+    if (timerStartMs === null) {
+      timerStartMs = now - elapsedSeconds.value * 1000
+    }
+
+    elapsedSeconds.value = (now - timerStartMs) / 1000
+    timerFrameId = window.requestAnimationFrame(tick)
+  }
+
+  timerFrameId = window.requestAnimationFrame(tick)
 }
 
 function stopTimer() {
-  if (timerId === null) return
-  window.clearInterval(timerId)
-  timerId = null
+  if (timerFrameId === null) return
+  window.cancelAnimationFrame(timerFrameId)
+  timerFrameId = null
+  timerStartMs = null
 }
 
 const compiledExpression = computed(() => {
@@ -253,7 +263,7 @@ const growthRate = computed(() => {
     compiledExpression.value,
     createExpressionContext(currentEnvironment.value, elapsedSeconds.value),
   )
-  return clampGrowthRate(raw)
+  return raw
 })
 
 const temperaturePercent = computed(() => {

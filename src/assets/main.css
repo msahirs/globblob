@@ -22,25 +22,25 @@
 :root {
   --bg-primary: #00153a;
   --bg-petri: #00153a;
-  --color-start-button: #00FF85;
+  --color-start-button: #00ff85;
   --color-graph-axes: #ffffff;
-  --color-info-bg: #00C6FF;
+  --color-info-bg: #00c6ff;
   --color-info-text: #00153a;
   --color-sliders-text: #ffffff;
   --color-fallback: #469a18;
   --slider-rotating-speed-track: #012a72;
-  --slider-rotating-speed-pointer: #00C6FF;
+  --slider-rotating-speed-pointer: #00c6ff;
   --slider-PH-track: #012a72;
-  --slider-PH-pointer: #FF7BBA;
+  --slider-PH-pointer: #ff7bba;
   --slider-oxygen-track: #012a72;
-  --slider-oxygen-pointer: #00FF85;
+  --slider-oxygen-pointer: #00ff85;
   --slider-red-track: #012a72;
   --slider-red-pointer: #ff0000;
   --slider-temp-track: #012a72;
   --slider-temp-pointer-min: #ffe000;
   --slider-temp-pointer-max: #ff0000;
   --petri-frame-color: #ffffff;
-  --bg-petri-blob: #20694A;
+  --bg-petri-blob: #20694a;
 }
 
 /* Reset / base */
@@ -58,7 +58,12 @@ body,
 
 body {
   background-color: var(--bg-primary);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   overflow: hidden;
 }
 
@@ -277,8 +282,8 @@ body {
   align-items: center;
   justify-content: space-between;
 
-  height: 24vh;   /* controls full height */
-  width: 6vh;     /* give space for labels */
+  height: 24vh; /* controls full height */
+  width: 6vh; /* give space for labels */
 }
 .slider::-webkit-slider-runnable-track {
   height: 6px;

@@ -22,6 +22,11 @@ describe('expressionEngine', () => {
     expect(clampGrowthRate(value)).toBeGreaterThan(0)
   })
 
+  it('allows negative growth rates instead of clamping them to zero', () => {
+    expect(clampGrowthRate(-3.5)).toBe(-3.5)
+    expect(clampGrowthRate(-200)).toBe(-200)
+  })
+
   it('builds preview points across the configured domain', () => {
     const compiled = compileGrowthExpression('sin(t / 10) + ((temperature - 20) / 20)')
     const points = buildGrowthPreview(compiled)

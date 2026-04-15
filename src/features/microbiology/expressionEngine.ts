@@ -1,5 +1,5 @@
 import { parse, type MathNode, type SymbolNode } from 'mathjs'
-import { DEFAULT_ENVIRONMENT_PARAMETERS, GROWTH_RATE_LIMITS, PREVIEW_X_DOMAIN } from './defaults'
+import { DEFAULT_ENVIRONMENT_PARAMETERS, PREVIEW_X_DOMAIN } from './defaults'
 import type { EnvironmentParameters, ExpressionContext, GrowthPreviewPoint } from './types'
 
 type CompiledGrowthExpression = {
@@ -148,7 +148,7 @@ export function evaluateGrowthExpression(expression: string, context: Expression
 }
 
 export function clampGrowthRate(value: number) {
-  return Math.min(GROWTH_RATE_LIMITS.max, Math.max(GROWTH_RATE_LIMITS.min, value))
+  return value
 }
 
 export function buildGrowthPreview(

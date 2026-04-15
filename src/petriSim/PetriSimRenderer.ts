@@ -130,6 +130,7 @@ export class PetriSimRenderer {
 
   private cells: Cell[] = []
   private growthAccumulator = 0
+  private externalGrowthRate = 1.2
   private lastMs = 0
   private frameDirty = true
 
@@ -138,7 +139,9 @@ export class PetriSimRenderer {
 
   private settings = {
     animate: false,
+    growthSource: 'config' as 'config' | 'manual',
     growthRate: 1.2,
+    manualGrowthRate: 1.2,
     maxCells: 1000,
     movementSpeed: 4.0,
     motionJitter: 2.5,
@@ -285,8 +288,10 @@ export class PetriSimRenderer {
   }
 
   setGrowthRate(growthRate: number) {
-    this.settings.growthRate = clamp(growthRate, 0, 20)
-    this.frameDirty = true
+    this.externalGrowthRate = growthRate
+    if (this.settings.growthSource === 'config') {
+      this.applyGrowthRateSource()
+    }
   }
 
   render(nowMs: number) {
@@ -347,7 +352,33 @@ export class PetriSimRenderer {
 
     const growthFolder = gui.addFolder('Growth')
     growthFolder.close()
-    growthFolder.add(this.settings, 'growthRate', 0, 20, 0.1).name('Rate / sec')
+    const growthSourceController = growthFolder
+      .add(this.settings, 'growthSource', { Config: 'config', Manual: 'manual' })
+      .name('Rate source')
+    const liveRateController = growthFolder.add(this.settings, 'growthRate').name('Rate / sec').listen()
+    const manualRateController = growthFolder
+      .add(this.settings, 'manualGrowthRate', -20, 200, 0.1)
+      .name('Manual rate')
+      .onChange(() => {
+        if (this.settings.growthSource === 'manual') {
+          this.applyGrowthRateSource()
+        }
+      })
+
+    liveRateController.disable()
+
+    const updateGrowthControllers = () => {
+      if (this.settings.growthSource === 'manual') {
+        manualRateController.enable()
+      } else {
+        manualRateController.disable()
+      }
+      this.applyGrowthRateSource()
+    }
+
+    growthSourceController.onChange(updateGrowthControllers)
+    updateGrowthControllers()
+
     growthFolder.add(this.settings, 'maxCells', 10, ABSOLUTE_MAX_CELLS, 1).name('Max cells')
     growthFolder.add(this.settings, 'parentBiasNewest', 0.05, 1.0, 0.01).name('Chain bias')
     growthFolder.add(this.settings, 'buddingGap', 0, 2.0, 0.05).name('Bud gap')
@@ -431,6 +462,14 @@ export class PetriSimRenderer {
     bloom.enabled = this.settings.bloomEnabled
     this.bloomComposer.addPass(bloom)
     this.bloomPass = bloom
+  }
+
+  private applyGrowthRateSource() {
+    this.settings.growthRate =
+      this.settings.growthSource === 'manual'
+        ? this.settings.manualGrowthRate
+        : this.externalGrowthRate
+    this.frameDirty = true
   }
 
   private updateMaterials() {
@@ -566,6 +605,12 @@ export class PetriSimRenderer {
     return true
   }
 
+  private removeCellFromPopulation() {
+    if (this.cells.length <= 0) return false
+    this.cells.pop()
+    return true
+  }
+
   private syncInstances() {
     const count = Math.min(this.cells.length, ABSOLUTE_MAX_CELLS)
     for (let i = 0; i < count; i++) {
@@ -626,12 +671,26 @@ export class PetriSimRenderer {
     }
 
     this.growthAccumulator += this.settings.growthRate * dt
-    let births = Math.floor(this.growthAccumulator)
-    if (births > 0) this.growthAccumulator -= births
+    const wholeGrowthEvents =
+      this.growthAccumulator >= 0
+        ? Math.floor(this.growthAccumulator)
+        : Math.ceil(this.growthAccumulator)
+
+    if (wholeGrowthEvents !== 0) {
+      this.growthAccumulator -= wholeGrowthEvents
+    }
+
+    let births = Math.max(0, wholeGrowthEvents)
+    let removals = Math.max(0, -wholeGrowthEvents)
 
     while (births > 0 && this.cells.length < this.settings.maxCells) {
       if (!this.spawnBudFromPopulation()) break
       births--
+    }
+
+    while (removals > 0) {
+      if (!this.removeCellFromPopulation()) break
+      removals--
     }
 
     this.syncInstances()

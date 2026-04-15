@@ -15,7 +15,7 @@ export const DEFAULT_ENVIRONMENT_PARAMETERS: EnvironmentParameters = {
 }
 
 export const GROWTH_RATE_LIMITS = {
-  min: 0,
+  min: -20,
   max: 20,
 }
 
