@@ -355,7 +355,10 @@ export class PetriSimRenderer {
     const growthSourceController = growthFolder
       .add(this.settings, 'growthSource', { Config: 'config', Manual: 'manual' })
       .name('Rate source')
-    const liveRateController = growthFolder.add(this.settings, 'growthRate').name('Rate / sec').listen()
+    const liveRateController = growthFolder
+      .add(this.settings, 'growthRate')
+      .name('Rate / sec')
+      .listen()
     const manualRateController = growthFolder
       .add(this.settings, 'manualGrowthRate', -20, 200, 0.1)
       .name('Manual rate')
