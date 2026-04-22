@@ -5,18 +5,11 @@
     </header>
 
     <main class="content">
-      <div class="graphContainer">
-        <svg class="graph" viewBox="0 0 300 150" preserveAspectRatio="none">
-          <line x1="20" y1="10" x2="20" y2="130" class="axis" />
-          <line x1="20" y1="130" x2="280" y2="130" class="axis" />
-
-          <polyline :points="graphPoints" fill="none" stroke="var(--color-graph-axes)" stroke-width="3" />
-
-          <circle :cx="x1" :cy="y1" r="5" fill="var(--color-graph-axes)" />
-          <circle :cx="x2" :cy="y2" r="5" fill="var(--color-graph-axes)" />
-          <circle :cx="x3" :cy="y3" r="5" fill="var(--color-graph-axes)" />
-        </svg>
-      </div>
+      <GraphUnit
+        :segments="graphSegments"
+        :start-animation="started"
+        :speed="20"
+      />
 
       <div class="sliders">
         <div class="slidersHorizontal">
@@ -92,11 +85,31 @@
 import { computed, provide, ref } from 'vue'
 import PetriDishSim from '@/components/PetriDishSim.vue'
 import SliderUnit from '@/components/sliders/SliderUnit.vue'
+import GraphUnit from '@/components/GraphUnit.vue'
 
 import titelUrl from '@/assets/bio/TitleDarkMode.svg'
 import infoIconUrl from '@/assets/bio/infoIconBlue.svg'
 
 const petriFrameColor = 'var(--petri-frame-color)'
+
+const graphSegments = [
+  {
+    formula: '10',
+    duration: 5
+  },
+  {
+    formula: '0.3 * x**2 + 10',
+    duration: 4
+  },
+  {
+    formula: '-0.1 * x**2 + 11',
+    duration: 6
+  },
+  {
+    formula: '0.5 * x + 20',
+    duration: 3
+  }
+]
 
 const sliderDraaiSnelheid = ref(1300)
 const sliderPHLevel = ref(7)
@@ -116,19 +129,6 @@ const phmax = 10.0
 
 const tempmin = 20.0
 const tempmax = 40.0
-
-
-const mapY = (value: number, min: number, max: number) => 130 - ((value - min) / (max - min)) * 120
-
-const x1 = 80
-const x2 = 160
-const x3 = 240
-
-const y1 = computed(() => mapY(sliderDraaiSnelheid.value, rotationMin, rotationMax))
-const y2 = computed(() => mapY(sliderPHLevel.value, phmin, phmax))
-const y3 = computed(() => mapY(sliderZuurstofLevel.value, zuurstofMin, zuurstofMax))
-
-const graphPoints = computed(() => `${x1},${y1.value} ${x2},${y2.value} ${x3},${y3.value}`)
 
 const activeInfo = ref<string | null>(null)
 const showInfo = (key: string) => (activeInfo.value = key)
