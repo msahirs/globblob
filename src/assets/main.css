@@ -23,6 +23,7 @@
   --bg-primary: #00153a;
   --bg-petri: #00153a;
   --color-start-button: #00ff85;
+  --color-reset-button: #fa7e51;
   --color-graph-axes: #ffffff;
   --color-info-bg: #00c6ff;
   --color-info-text: #00153a;
@@ -106,6 +107,7 @@ body {
   margin-top: 20px;
   padding: 12px 40px;
   font-size: 1.5rem;
+  width: 10vw;
   background-color: var(--color-start-button);
   color: var(--bg-primary);
   border: none;
@@ -114,7 +116,23 @@ body {
   font-family: 'Bebas Neue', monospace;
   position: absolute;
   right: 7%;
-  bottom: 8%;
+  bottom: 20%;
+}
+
+.resetButton {
+  width: 6vw;
+  margin-top: 20px;
+  padding: 8px 17px;
+  font-size: 1.5rem;
+  background-color: var(--color-reset-button);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: 4% / 10%;
+  cursor: pointer;
+  font-family: 'Bebas Neue', monospace;
+  position: absolute;
+  right: 7%;
+  bottom: 9%;
 }
 
 .petriStage {

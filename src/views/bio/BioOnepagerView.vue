@@ -6,21 +6,12 @@
 
     <main class="content">
       <div class="graphContainer">
-        <svg class="graph" viewBox="0 0 300 150" preserveAspectRatio="none">
-          <line x1="20" y1="10" x2="20" y2="130" class="axis" />
-          <line x1="20" y1="130" x2="280" y2="130" class="axis" />
-
-          <polyline
-            :points="graphPoints"
-            fill="none"
-            stroke="var(--color-graph-axes)"
-            stroke-width="3"
-          />
-
-          <circle :cx="x1" :cy="y1" r="5" fill="var(--color-graph-axes)" />
-          <circle :cx="x2" :cy="y2" r="5" fill="var(--color-graph-axes)" />
-          <circle :cx="x3" :cy="y3" r="5" fill="var(--color-graph-axes)" />
-        </svg>
+        <ExpressionGraph
+              :points="previewPoints"
+              :invalid="!validation.ok"
+              :invalid-message="validation.ok ? '' : validation.error"
+              compact
+            />
       </div>
 
       <div class="sliders">
@@ -97,6 +88,10 @@
       <button class="startButton" @click="started = !started">
         {{ started ? 'Stop' : 'Start' }}
       </button>
+
+      <button class="resetButton" v-if="elapsedSeconds > 0" @click="elapsedSeconds = 0">
+        Reset
+      </button>
     </main>
 
     <div class="petriStage" aria-label="Petri dish simulation">
@@ -136,6 +131,7 @@
 import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import PetriDishSim from '@/components/PetriDishSim.vue'
 import SliderUnit from '@/components/sliders/SliderUnit.vue'
+import ExpressionGraph from '@/components/bio/ExpressionGraph.vue'
 import titelUrl from '@/assets/bio/TitleDarkMode.svg'
 import infoIconUrl from '@/assets/bio/infoIconBlue.svg'
 import { PARAMETER_RANGES } from '@/features/microbiology/defaults'
@@ -172,17 +168,17 @@ const phmax = PARAMETER_RANGES.ph.max
 const tempmin = PARAMETER_RANGES.temperature.min
 const tempmax = PARAMETER_RANGES.temperature.max
 
-const mapY = (value: number, min: number, max: number) => 130 - ((value - min) / (max - min)) * 120
+// const mapY = (value: number, min: number, max: number) => 130 - ((value - min) / (max - min)) * 120
 
-const x1 = 80
-const x2 = 160
-const x3 = 240
+// const x1 = 80
+// const x2 = 160
+// const x3 = 240
 
-const y1 = computed(() => mapY(sliderDraaiSnelheid.value, rotationMin, rotationMax))
-const y2 = computed(() => mapY(sliderPHLevel.value, phmin, phmax))
-const y3 = computed(() => mapY(sliderZuurstofLevel.value, zuurstofMin, zuurstofMax))
+// const y1 = computed(() => mapY(sliderDraaiSnelheid.value, rotationMin, rotationMax))
+// const y2 = computed(() => mapY(sliderPHLevel.value, phmin, phmax))
+// const y3 = computed(() => mapY(sliderZuurstofLevel.value, zuurstofMin, zuurstofMax))
 
-const graphPoints = computed(() => `${x1},${y1.value} ${x2},${y2.value} ${x3},${y3.value}`)
+// const graphPoints = computed(() => `${x1},${y1.value} ${x2},${y2.value} ${x3},${y3.value}`)
 
 const activeInfo = ref<string | null>(null)
 const showInfo = (key: string) => (activeInfo.value = key)
@@ -257,6 +253,28 @@ const currentEnvironment = computed(() => ({
   oxygen: sliderZuurstofLevel.value,
   temperature: sliderTemperature.value,
 }))
+
+// Mocked validation for now
+const validation = computed(() => ({
+  ok: true,
+  error: '',
+}))
+
+// Mocked preview points - will be replaced with actual calculation
+const previewPoints = computed(() => {
+  // Generate mock exponential-like growth curve
+  const points = []
+  const maxTime = started.value ? elapsedSeconds.value : 10
+  const steps = Math.ceil(maxTime * 10) // 10 points per second
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / 10 // 0 to 10
+    if (t > maxTime) break
+    const value = 0.5 * Math.exp(0.1 * t) // Simple exponential growth
+    points.push({ x: t, y: value })
+  }
+  return points
+})
 
 const growthRate = computed(() => {
   const raw = evaluateCompiledGrowthExpression(

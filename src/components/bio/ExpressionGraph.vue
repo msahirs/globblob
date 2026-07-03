@@ -10,10 +10,12 @@ const props = withDefaults(
     points: GrowthPreviewPoint[]
     invalid?: boolean
     invalidMessage?: string
+    compact?: boolean
   }>(),
   {
     invalid: false,
     invalidMessage: '',
+    compact: false,
   },
 )
 
@@ -92,7 +94,7 @@ function renderChart() {
         x: {
           type: 'linear',
           title: {
-            display: true,
+            display: !props.compact,
             text: 't',
             color: 'rgba(255, 255, 255, 0.86)',
           },
@@ -142,7 +144,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="expressionGraph" :class="{ invalid }">
+  <div class="expressionGraph" :class="{ invalid, compact }">
     <div class="chartSurface">
       <canvas ref="canvasRef" aria-label="Population curve preview"></canvas>
     </div>
@@ -163,6 +165,12 @@ onBeforeUnmount(() => {
   padding: 14px;
   background:
     radial-gradient(circle at top, rgba(0, 198, 255, 0.14), transparent 55%), rgba(0, 11, 31, 0.78);
+}
+
+.expressionGraph.compact .chartSurface {
+  height: 30vh;
+  width: 45vw;
+  border-radius: 10px;
 }
 
 .graphMessage {
