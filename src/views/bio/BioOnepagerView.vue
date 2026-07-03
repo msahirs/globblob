@@ -264,7 +264,7 @@ const validation = computed(() => ({
 const previewPoints = computed(() => {
   // Generate mock exponential-like growth curve
   const points = []
-  const maxTime = started.value ? elapsedSeconds.value : 10
+  const maxTime = elapsedSeconds.value // Always show up to current elapsed time
   const steps = Math.ceil(maxTime * 10) // 10 points per second
 
   for (let i = 0; i <= steps; i++) {

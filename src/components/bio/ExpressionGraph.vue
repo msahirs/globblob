@@ -93,6 +93,8 @@ function renderChart() {
       scales: {
         x: {
           type: 'linear',
+          min: 0,
+          max: 20,
           title: {
             display: !props.compact,
             text: 't',
@@ -106,6 +108,8 @@ function renderChart() {
           },
         },
         y: {
+          min: 0,
+          max: 3,
           title: {
             display: true,
             text: 'Population at time t',
