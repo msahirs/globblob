@@ -2,7 +2,12 @@
   <div class="sliderUnit">
     <div class="sliderTextHorizontal">
       <span class="sliderLabel">{{ label }}</span>
-      <div class="infoWrapper" @mouseenter="showInfo(infoKey)" @mouseleave="hideInfo" @click="toggleInfo(infoKey)">
+      <div
+        class="infoWrapper"
+        @mouseenter="showInfo(infoKey)"
+        @mouseleave="hideInfo"
+        @click="toggleInfo(infoKey)"
+      >
         <img :src="infoIconUrl" alt="Info" class="infoIcon" />
         <div v-if="activeInfo === infoKey" class="infoIconText">
           {{ infoText }}
@@ -25,7 +30,6 @@
       />
       <span class="sliderMax">{{ max_value }}</span>
     </div>
-
   </div>
 </template>
 
@@ -56,8 +60,6 @@ const props = defineProps<{
   max_value: number
   steps?: number
 }>()
-
-console.log(props.modelValue)
 
 const emit = defineEmits<{
   'update:modelValue': [value: number]

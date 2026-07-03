@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
-import { MetaballsDishRender } from '@/metaballs/MetaballsDishRender'
+import { PetriSimRenderer } from '@/petriSim/PetriSimRenderer'
 
 const props = defineProps<{
   running: boolean
+  growthRate: number
 }>()
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const supported = ref(true)
 
-let sim: MetaballsDishRender | null = null
+let sim: PetriSimRenderer | null = null
 let raf: number | null = null
 
 function frame(now: number) {
@@ -25,11 +26,12 @@ onMounted(() => {
     return
   }
 
-  sim = new MetaballsDishRender(containerRef.value)
+  sim = new PetriSimRenderer(containerRef.value)
   const isAutomated = typeof navigator !== 'undefined' && !!navigator.webdriver
   supported.value = sim.init({ showStats: true, showGui: !isAutomated })
   if (!supported.value) return
 
+  sim.setGrowthRate(props.growthRate)
   sim.setRunning(props.running)
   raf = window.requestAnimationFrame(frame)
 })
@@ -38,6 +40,13 @@ watch(
   () => props.running,
   (v) => {
     sim?.setRunning(v)
+  },
+)
+
+watch(
+  () => props.growthRate,
+  (v) => {
+    sim?.setGrowthRate(v)
   },
 )
 
