@@ -294,6 +294,47 @@ export class PetriSimRenderer {
     }
   }
 
+  syncToTime(targetSeconds: number, growthRateAt: (t: number) => number, stepSeconds = 0.1) {
+    this.reset()
+
+    const maxRatePerStep = this.settings.maxCells / stepSeconds
+
+    const steps = Math.max(0, Math.ceil(targetSeconds / stepSeconds))
+    for (let i = 0; i < steps; i++) {
+      if (this.cells.length >= this.settings.maxCells && this.growthAccumulator >= 0) break
+
+      const t = Math.min(targetSeconds, (i + 1) * stepSeconds)
+      const dt = t - i * stepSeconds
+      const rate = clamp(growthRateAt(t), -maxRatePerStep, maxRatePerStep)
+      this.growthAccumulator += rate * dt
+
+      const wholeGrowthEvents =
+        this.growthAccumulator >= 0
+          ? Math.floor(this.growthAccumulator)
+          : Math.ceil(this.growthAccumulator)
+
+      if (wholeGrowthEvents !== 0) {
+        this.growthAccumulator -= wholeGrowthEvents
+      }
+
+      let births = Math.max(0, wholeGrowthEvents)
+      let removals = Math.max(0, -wholeGrowthEvents)
+
+      while (births > 0 && this.cells.length < this.settings.maxCells) {
+        if (!this.spawnBudFromPopulation()) break
+        births--
+      }
+
+      while (removals > 0) {
+        if (!this.removeCellFromPopulation()) break
+        removals--
+      }
+    }
+
+    this.syncInstances()
+    this.frameDirty = true
+  }
+
   render(nowMs: number) {
     this.stats?.begin()
     try {

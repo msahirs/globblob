@@ -17,10 +17,12 @@ test('loads the biolab onepager UI', async ({ page }) => {
 
 test('loads the microbiology config UI', async ({ page }) => {
   await page.goto('/microbiology/config')
-  await expect(page.getByRole('heading', { name: 'Configuration library' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Population curve builder' })).toBeVisible()
-  await expect(page.getByLabel('Expression')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Saved Curves' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Editor' })).toBeVisible()
 
-  await page.getByLabel('Expression').fill('sin(')
+  const expressionTextarea = page.locator('textarea.expressionField')
+  await expect(expressionTextarea).toBeVisible()
+
+  await expressionTextarea.fill('sin(')
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled()
 })

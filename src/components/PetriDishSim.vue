@@ -50,6 +50,12 @@ watch(
   },
 )
 
+function syncToTime(targetSeconds: number, growthRateAt: (t: number) => number) {
+  sim?.syncToTime(targetSeconds, growthRateAt)
+}
+
+defineExpose({ syncToTime })
+
 onUnmounted(() => {
   if (raf) window.cancelAnimationFrame(raf)
   raf = null
